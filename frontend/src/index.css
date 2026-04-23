@@ -1,0 +1,325 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Saira', sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+  font-variation-settings:
+    "wdth" 100;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.container {
+  @apply w-full max-w-7xl mx-auto px-4;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-md p-6 transition hover:shadow-lg;
+}
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+
+.btn-primary {
+  @apply bg-green-600 text-white hover:bg-green-700 shadow-md hover:shadow-lg;
+}
+
+.btn-secondary {
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300 shadow-sm hover:shadow-md;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg;
+}
+
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+/* Improved Typography */
+h1 {
+  @apply text-4xl font-bold text-gray-800 mb-4;
+}
+
+h2 {
+  @apply text-3xl font-bold text-gray-800 mb-3;
+}
+
+h3 {
+  @apply text-2xl font-semibold text-gray-700 mb-2;
+}
+
+h4 {
+  @apply text-xl font-semibold text-gray-700 mb-2;
+}
+
+/* Improved Tables */
+table {
+  @apply w-full border-collapse;
+}
+
+thead {
+  @apply bg-green-600 text-white;
+}
+
+th, td {
+  @apply px-4 py-3 text-left;
+}
+
+tbody tr {
+  @apply border-b border-gray-200 hover:bg-gray-50 transition;
+}
+
+/* Dark mode support */
+.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+.dark .card {
+  background-color: #111827;
+  color: #e2e8f0;
+  border: 1px solid #1f2937;
+}
+
+.dark .btn-primary {
+  background-color: #10b981;
+  color: #0b1220;
+}
+
+.dark .btn-primary:hover {
+  background-color: #059669;
+}
+
+.dark .btn-secondary {
+  background-color: #1f2937;
+  color: #e2e8f0;
+}
+
+.dark .btn-secondary:hover {
+  background-color: #334155;
+}
+
+.dark .btn-danger {
+  background-color: #ef4444;
+}
+
+.dark .btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.dark .form-input {
+  background-color: #0b1220;
+  border-color: #1f2937;
+  color: #e2e8f0;
+}
+
+.dark .form-input::placeholder {
+  color: #94a3b8;
+}
+
+.dark .form-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #10b981;
+}
+
+.dark .form-label {
+  color: #cbd5f5;
+}
+
+/* Dark mode text contrast fixes */
+.dark .text-gray-800 {
+  color: #e2e8f0;
+}
+
+.dark .text-gray-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-gray-600 {
+  color: #94a3b8;
+}
+
+.dark .text-gray-500 {
+  color: #94a3b8;
+}
+
+/* Dark mode card gradients */
+.dark .card.bg-gradient-to-br {
+  background: linear-gradient(135deg, #111827 0%, #0b1220 100%);
+  border: 1px solid #1f2937;
+}
+
+.dark .card:hover {
+  background-color: #111827;
+  color: #e2e8f0;
+}
+
+.dark .card.bg-gradient-to-br:hover {
+  background: linear-gradient(135deg, #0b1220 0%, #0b1220 100%);
+}
+
+/* Dark mode table and hover fixes */
+.dark thead.bg-green-600 {
+  background-color: #0f766e;
+}
+
+.dark tbody.divide-y > :not([hidden]) ~ :not([hidden]) {
+  border-color: #1f2937;
+}
+
+.dark .hover\:bg-gray-50:hover {
+  background-color: #0b1220;
+}
+
+.dark .bg-blue-100 {
+  background-color: #1f2937;
+}
+
+.dark .text-blue-600 {
+  color: #60a5fa;
+}
+
+.dark .hover\:bg-blue-200:hover {
+  background-color: #334155;
+}
+
+.dark .bg-yellow-100 {
+  background-color: #2a2a1f;
+}
+
+.dark .text-yellow-600 {
+  color: #fbbf24;
+}
+
+.dark .hover\:bg-yellow-200:hover {
+  background-color: #3a3a26;
+}
+
+.dark .bg-green-100 {
+  background-color: #1f2f2a;
+}
+
+.dark .text-green-600 {
+  color: #34d399;
+}
+
+.dark .hover\:bg-green-200:hover {
+  background-color: #2b3f37;
+}
+
+.dark .bg-red-100 {
+  background-color: #2f1f1f;
+}
+
+.dark .text-red-600 {
+  color: #f87171;
+}
+
+.dark .hover\:bg-red-200:hover {
+  background-color: #3f2424;
+}
+
+/* Dark mode status pills */
+.dark .bg-gray-200 {
+  background-color: #1f2937;
+}
+
+.dark .text-gray-800 {
+  color: #e2e8f0;
+}
+
+.dark .bg-blue-200 {
+  background-color: #1e293b;
+}
+
+.dark .text-blue-800 {
+  color: #bfdbfe;
+}
+
+.dark .bg-green-200 {
+  background-color: #134e4a;
+}
+
+.dark .text-green-800 {
+  color: #bbf7d0;
+}
+
+.dark .bg-red-200 {
+  background-color: #3f1d1d;
+}
+
+.dark .text-red-800 {
+  color: #fecaca;
+}
+
+.dark .card .text-blue-600,
+.dark .card .text-green-600,
+.dark .card .text-purple-600,
+.dark .card .text-orange-600 {
+  color: #e2e8f0;
+}
+
+.dark .card .bg-blue-500,
+.dark .card .bg-green-500,
+.dark .card .bg-purple-500,
+.dark .card .bg-orange-500 {
+  background-color: #1f2937;
+}
+
+/* Dark mode typography improvements */
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4 {
+  color: #e2e8f0;
+}
+
+.dark thead {
+  background-color: #0f5c3a;
+}
+
+.dark tbody tr {
+  border-color: #1f2937;
+}
+
+.dark tbody tr:hover {
+  background-color: #0b1220;
+}
+
+.dark .card {
+  background-color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.dark .card:hover {
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.6);
+}
+
+.dark table {
+  background-color: #0b1220;
+}
+
+.dark th,
+.dark td {
+  color: #e2e8f0;
+}
+
+.dark tbody tr:hover {
+  background-color: #0f1820;
+}

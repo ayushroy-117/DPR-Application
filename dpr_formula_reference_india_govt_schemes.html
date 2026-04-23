@@ -1,0 +1,223 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:1rem 0}
+.section{margin-bottom:2rem}
+.section-title{font-size:18px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px;padding-bottom:8px;border-bottom:1.5px solid var(--color-border-secondary)}
+.section-sub{font-size:13px;color:var(--color-text-secondary);margin-bottom:14px}
+.formula-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);margin-bottom:12px;overflow:hidden}
+.fc-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.fc-name{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:500}
+.badge-ok{background:var(--color-background-success);color:var(--color-text-success)}
+.badge-err{background:var(--color-background-danger);color:var(--color-text-danger)}
+.badge-warn{background:var(--color-background-warning);color:var(--color-text-warning)}
+.fc-body{padding:12px 14px}
+.label{font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.formula-box{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;font-family:var(--font-mono);font-size:13px;color:var(--color-text-primary);line-height:1.7;margin-bottom:10px;white-space:pre-wrap}
+.note{font-size:12px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:6px}
+.note strong{font-weight:500;color:var(--color-text-primary)}
+.err-box{background:var(--color-background-danger);border:0.5px solid var(--color-border-danger, var(--color-border-tertiary));border-radius:var(--border-radius-md);padding:9px 12px;font-size:12px;color:var(--color-text-danger);margin-bottom:8px;line-height:1.6}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.mini-card{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:8px 10px}
+.mini-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:2px}
+.mini-val{font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.scheme-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.scheme-pill{font-size:11px;padding:3px 9px;border-radius:20px;background:var(--color-background-info);color:var(--color-text-info);font-weight:500}
+.divider{height:0.5px;background:var(--color-border-tertiary);margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{background:var(--color-background-secondary)}
+th{text-align:left;padding:7px 10px;font-weight:500;color:var(--color-text-secondary);font-size:12px;border-bottom:0.5px solid var(--color-border-tertiary)}
+td{padding:7px 10px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-primary);line-height:1.5}
+tr:last-child td{border-bottom:none}
+.mono{font-family:var(--font-mono);font-size:12px}
+.success{color:var(--color-text-success);font-weight:500}
+.danger{color:var(--color-text-danger);font-weight:500}
+</style>
+<div class="wrap">
+
+<div class="section">
+  <div class="section-title">1. Gross profit — trading business</div>
+  <div class="section-sub">Applies to Electronics Trading & Retail. Your current formula is inverted — purchases are being added instead of subtracted from adjusted revenue.</div>
+
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">Gross profit (correct formula)</span><span class="badge badge-ok">Fix this first</span></div>
+    <div class="fc-body">
+      <div class="label">Step 1 — adjusted revenue (cost of goods available)</div>
+      <div class="formula-box">Adjusted Revenue = Sales + Closing Stock - Opening Stock</div>
+      <div class="label">Step 2 — cost of goods sold (COGS)</div>
+      <div class="formula-box">COGS = Stock Purchases + Direct Wages + Direct Expenses</div>
+      <div class="label">Step 3 — gross profit</div>
+      <div class="formula-box">Gross Profit = Adjusted Revenue - COGS</div>
+      <div class="err-box">Your ERP bug: it computed (Sales + Closing Stock + Purchases - Opening Stock) which adds purchases to revenue. Fix: subtract COGS from adjusted revenue. With ₹10L sales and ₹22L purchases, this business runs at a gross LOSS unless gross margin % is applied to purchases, not full cost.</div>
+      <div class="note"><strong>For a trading business</strong>, stock purchases should reflect only the cost of goods actually sold, not total inventory procured. Typical gross margin for electronics retail is 8–15%. If annual sales = ₹10,00,000 and gross margin = 12%, then COGS = ₹8,80,000 — not ₹22,00,000.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">2. DSCR — Debt Service Coverage Ratio</div>
+  <div class="section-sub">Most critical ratio for PMEGP, PMFME and Swabalamban. Required ≥ 1.50 (PMEGP), ≥ 1.75 average (bank norms), minimum 1.0 in any single year.</div>
+
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">DSCR formula (RBI / banking norms)</span><span class="badge badge-err">Currently broken</span></div>
+    <div class="fc-body">
+      <div class="label">Numerator — Net Cash Accrual</div>
+      <div class="formula-box">Net Cash Accrual = PAT + Depreciation</div>
+      <div class="label">Denominator — Total Debt Service (annual)</div>
+      <div class="formula-box">Total Debt Service = TL Principal Repaid (year) + Interest on TL</div>
+      <div class="label">DSCR for each year</div>
+      <div class="formula-box">DSCR (Year N) = (PAT + Depreciation) / (TL Principal + TL Interest)</div>
+      <div class="label">Average DSCR (5 years)</div>
+      <div class="formula-box">Avg DSCR = SUM of all 5 year DSCRs / 5</div>
+      <div class="divider"></div>
+      <div class="label">Benchmark thresholds</div>
+      <table>
+        <thead><tr><th>Scheme</th><th>Min per year</th><th>Avg DSCR</th></tr></thead>
+        <tbody>
+          <tr><td>PMEGP (KVIC)</td><td class="success">≥ 1.25</td><td class="success">≥ 1.50</td></tr>
+          <tr><td>PMFME (MoFPI)</td><td class="success">≥ 1.25</td><td class="success">≥ 1.50</td></tr>
+          <tr><td>Swabalamban / MSME bank loans</td><td class="success">≥ 1.00 (MSE)</td><td class="success">≥ 1.75</td></tr>
+          <tr><td>Your report</td><td class="danger">-24.11 (negative)</td><td class="danger">-23.50</td></tr>
+        </tbody>
+      </table>
+      <div class="divider"></div>
+      <div class="err-box">Root cause: your ERP appears to be computing DSCR as a negative number, likely dividing (PAT - Depreciation - Interest) by debt service instead of (PAT + Depreciation). WC interest should NOT be in the denominator — only Term Loan principal + TL interest goes in the denominator.</div>
+      <div class="note"><strong>Note:</strong> Interest on Working Capital (CC Loan) is an operating expense, already reflected in PAT. Never include it in the debt service denominator — this double-counts it and artificially suppresses DSCR.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">3. Balance sheet — corrected structure</div>
+  <div class="section-sub">Your report showed differences of ₹58–65 lakh per year. The core problem is Accounts Payable being inflated to 5–6× annual sales.</div>
+
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">Balance sheet formulas</span><span class="badge badge-err">Does not balance</span></div>
+    <div class="fc-body">
+      <div class="label">Accounts payable (correct)</div>
+      <div class="formula-box">Accounts Payable = (Stock Purchases / 365) × Creditor Days
+
+Creditor Days for electronics retail = 30–45 days
+
+Example (Year 1):
+  Stock Purchases = ₹8,80,000 (corrected COGS)
+  Creditor Days = 30
+  Accounts Payable = (8,80,000 / 365) × 30 = ₹72,329</div>
+      <div class="err-box">Your ERP set Accounts Payable at ₹56,25,000 in Year 1 against ₹10L in sales — this is 5.6× annual revenue, which is impossible for a retail business. The formula above is the correct banking-norm approach.</div>
+      <div class="divider"></div>
+      <div class="label">Reserves & surplus (cumulative)</div>
+      <div class="formula-box">Reserves (Year 1) = PAT (Year 1) - Drawings (Year 1)
+Reserves (Year N) = Reserves (Year N-1) + PAT (Year N) - Drawings (Year N)</div>
+      <div class="label">Net fixed assets (WDV method)</div>
+      <div class="formula-box">Net Fixed Assets (Year 1) = Gross Block - Depreciation (Year 1)
+Net Fixed Assets (Year N) = Net Fixed Assets (Year N-1) - Depreciation (Year N)</div>
+      <div class="label">Term loan balance</div>
+      <div class="formula-box">TL Balance (Year N) = TL Balance (Year N-1) - Principal Repaid (Year N)</div>
+      <div class="label">Validation check (must equal zero)</div>
+      <div class="formula-box">Difference = Total Assets - Total Liabilities
+= (Net Fixed Assets + Inventory + Trade Receivables + Cash)
+  - (Capital + Reserves + TL Balance + WC Loan + Accounts Payable)
+
+Must = 0. Block report generation if |Difference| > 1.</div>
+      <div class="label">Trade receivables (correct)</div>
+      <div class="formula-box">Trade Receivables = (Annual Sales / 365) × Debtor Days
+Debtor Days for cash-heavy retail = 7–15 days</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">4. Cash flow — indirect method</div>
+  <div class="section-sub">Your chart showed cash going to -₹55L while the statement showed +₹55L. The chart was reading from a wrong data source.</div>
+
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">Cash flow — indirect method (correct)</span><span class="badge badge-warn">Chart data mismatch</span></div>
+    <div class="fc-body">
+      <div class="label">Operating cash flow</div>
+      <div class="formula-box">Operating CF = PAT
+  + Depreciation                    [non-cash add-back]
+  + Increase in Creditors           [working capital source]
+  - Increase in Debtors             [working capital use]
+  - Increase in Inventory           [working capital use]</div>
+      <div class="label">Financing cash flow</div>
+      <div class="formula-box">Financing CF = + WC Loan Drawn (Year 1 only)
+  + Capital Introduced (Year 1 only)
+  + TL Drawn (Year 1 only)
+  - TL Principal Repaid
+  - Drawings / Owner Withdrawals
+  - Interest on TL                  [if not already in PAT]</div>
+      <div class="label">Net cash flow & closing balance</div>
+      <div class="formula-box">Net CF (Year N) = Operating CF + Financing CF
+Closing Balance (Year N) = Opening Balance (Year N) + Net CF (Year N)
+Opening Balance (Year N) = Closing Balance (Year N-1)
+Opening Balance (Year 1) = 0</div>
+      <div class="err-box">Your chart data: the Cash Balance Growth chart pulled a negative series — it was likely reading outflows only or using a sign-inverted variable. Closing Balance must always match the Cash Flow Statement's closing figure exactly.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">5. Break-even analysis</div>
+  <div class="section-sub">Your BEP was the only section calculated correctly. Here are the formulas to keep it consistent with corrected P&L figures.</div>
+
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">Break-even formulas</span><span class="badge badge-ok">Working correctly</span></div>
+    <div class="fc-body">
+      <div class="label">Fixed vs variable cost classification</div>
+      <div class="formula-box">Fixed Costs  = Rent + Salaries + Depreciation + TL Interest + WC Interest
+Variable Costs = Electricity + Miscellaneous (vary with sales)</div>
+      <div class="label">Contribution margin ratio</div>
+      <div class="formula-box">Contribution = Sales - Variable Costs
+CM Ratio (%) = (Contribution / Sales) × 100</div>
+      <div class="label">Break-even point</div>
+      <div class="formula-box">BEP Sales (₹) = Fixed Costs / CM Ratio
+BEP (%)      = (BEP Sales / Total Annual Sales) × 100</div>
+      <div class="note"><strong>After fixing the P&L</strong>, re-run the BEP using corrected fixed and variable costs — the values will change significantly from the current 2.91% figure since total costs are currently understated.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">6. Depreciation — WDV method</div>
+  <div class="section-sub">This section is correct in your report. Keep using the same formula.</div>
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">WDV depreciation (15% p.a.)</span><span class="badge badge-ok">Correct</span></div>
+    <div class="fc-body">
+      <div class="formula-box">Depreciation (Year 1) = Gross Block × 15%
+Depreciation (Year N) = WDV (Year N-1) × 15%
+WDV (Year N) = WDV (Year N-1) - Depreciation (Year N)
+
+Year 1: 2,35,000 × 15% = ₹35,250  ✓
+Year 2: 1,99,750 × 15% = ₹29,963  ✓</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">7. Scheme-wise validation checklist</div>
+  <div class="section-sub">Run these checks before generating any report. If any check fails, block generation and show an error to the user.</div>
+  <div class="formula-card">
+    <div class="fc-header"><span class="fc-name">Mandatory validation rules</span><span class="badge badge-err">Add to your ERP</span></div>
+    <div class="fc-body">
+      <table>
+        <thead><tr><th>Check</th><th>Formula / Rule</th><th>Pass condition</th></tr></thead>
+        <tbody>
+          <tr><td>Balance sheet</td><td class="mono">|Assets - Liabilities| ≤ 1</td><td class="success">Must = 0</td></tr>
+          <tr><td>Avg DSCR</td><td class="mono">Avg DSCR ≥ 1.50</td><td class="success">≥ 1.50 for PMEGP/PMFME</td></tr>
+          <tr><td>Min DSCR any year</td><td class="mono">All year DSCRs ≥ 1.00</td><td class="success">No year below 1.0</td></tr>
+          <tr><td>WC loan limit</td><td class="mono">CC Loan ≤ 25% of Annual Sales</td><td class="success">Within limit</td></tr>
+          <tr><td>Gross profit</td><td class="mono">Gross Profit &gt; 0</td><td class="success">Must be positive</td></tr>
+          <tr><td>PAT</td><td class="mono">PAT &gt; 0 from Year 1 or Year 2</td><td class="success">Positive by Year 2</td></tr>
+          <tr><td>Accounts payable</td><td class="mono">AP ≤ 15% of Annual Sales</td><td class="success">Realistic trade credit</td></tr>
+          <tr><td>Cash closing balance</td><td class="mono">Closing Balance &gt; 0 all years</td><td class="success">No negative cash</td></tr>
+          <tr><td>DSCR sign</td><td class="mono">DSCR &gt; 0</td><td class="danger">Negative DSCR = reject</td></tr>
+          <tr><td>Feasibility note</td><td class="mono">If Avg DSCR &lt; 1.25 → flag as NOT viable</td><td class="danger">Must not say "viable" if DSCR fails</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
