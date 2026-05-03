@@ -21,6 +21,13 @@ const projectSchema = new mongoose.Schema({
     businessType: String,
     schemeName: String,
     employmentCount: Number,
+    employmentType: String,
+    district: String,
+    state: String,
+    guardianName: String,
+    locality: String,
+    city: String,
+    pinCode: String,
     introduction: { type: String, default: '' },
     assumptions: { type: String, default: '' }
   },

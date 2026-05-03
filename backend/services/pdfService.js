@@ -133,7 +133,7 @@ export class PDFService {
           this.generateCoverPage(projectData),
           { text: '', pageBreak: 'after' },
 
-          this.generateExecutiveSummary(projectData),
+          this.generateProjectAtAGlance(projectData),
           { text: '', pageBreak: 'after' },
 
           { text: 'FINANCIAL PERFORMANCE VISUALIZATION', style: 'header', margin: [0, 10, 0, 10] },
@@ -149,7 +149,6 @@ export class PDFService {
           { text: '', pageBreak: 'after' },
 
           this.generateDepreciationScheduleTable(projectData),
-          this.generateWorkingCapitalTable(projectData),
           { text: '', pageBreak: 'after' },
 
           this.generateRevenueProjectionTable(projectData),
@@ -193,29 +192,261 @@ export class PDFService {
 
   static generateCoverPage(projectData) {
     const basic = projectData.basicInfo || {};
+
+    const bgColor    = '#B8E4F0';   // light blue from the image
+    const orangeText = '#D4640A';   // bold orange used for the title
+    const borderClr  = '#7A9AAA';   // subtle border around the page box
+
+    // Build the title string dynamically
+    const titleLine = `Submission of Project Proposal on\n`
+      + `${basic.businessName || 'Proposed Business'} for Financial\n`
+      + `Assistance under ${basic.schemeName || 'Swabalamban'}\n`
+      + `Scheme`;
+
+    // Submitted-to address lines (filter out empty strings)
+    const submittedToLines = [
+      'The General Manager,',
+      `District Industries Center ${basic.district || ''}${basic.district && basic.state ? ', ' : ''}${basic.state || ''}`
+    ].filter(Boolean);
+
+    // Submitted-by address lines (filter out empty strings)
+    const submittedByLines = [
+      basic.promoterName,
+      basic.guardianName ? `C/O; ${basic.guardianName}` : null,
+      basic.locality,
+      basic.address,
+      [basic.city, basic.state].filter(Boolean).join(', '),
+      basic.pinCode ? `${basic.state || ''} -${basic.pinCode}` : null,
+    ].filter(Boolean);
+
     return {
-      stack: [
-        { text: 'GOVERNMENT OF INDIA', alignment: 'center', fontSize: 14, bold: true, margin: [0, 20, 0, 5] },
-        { text: 'DISTRICT INDUSTRIES CENTRE', alignment: 'center', fontSize: 14, bold: true, margin: [0, 0, 0, 50] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 450, y2: 0, lineWidth: 1 }] },
-        { text: 'DETAILED PROJECT REPORT', style: 'title', margin: [0, 60, 0, 10] },
-        { text: (basic.businessName || 'PROPOSED BUSINESS').toUpperCase(), fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 10] },
-        { text: `UNDER ${ (basic.schemeName || 'GOVERNMENT SCHEME').toUpperCase() }`, alignment: 'center', fontSize: 14, margin: [0, 0, 0, 80] },
-        { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 450, y2: 0, lineWidth: 1 }] },
-        {
-          columns: [
-            { width: '*', text: '' },
+      // Use a table with a single cell so pdfmake can apply
+      // a background fill + border to the entire cover page area.
+      table: {
+        widths: ['*'],
+        heights: [650],   // fits on first page with A4 size and 72pt margins
+        body: [
+          [
             {
-              width: 300,
+              // ---- everything inside the blue box ----
+              fillColor: bgColor,
+              border: [true, true, true, true],
+              borderColor: [borderClr, borderClr, borderClr, borderClr],
               stack: [
-                { text: 'SUBMITTED BY:', bold: true, fontSize: 14, margin: [0, 50, 0, 10] },
-                { text: `Name: ${basic.promoterName || 'N/A'}`, fontSize: 12 },
-                { text: `Address: ${basic.address || 'N/A'}`, fontSize: 12 },
-                { text: `Phone: ${basic.phone || 'N/A'}`, fontSize: 12 },
-                { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, fontSize: 12 }
-              ]
+
+                // ── Title ──────────────────────────────────────────────
+                {
+                  text: titleLine,
+                  fontSize: 21,
+                  bold: true,
+                  color: orangeText,
+                  alignment: 'center',
+                  lineHeight: 1.45,
+                  margin: [20, 50, 20, 0],
+                },
+
+                // ── Spacer between title and address blocks ─────────────
+                { text: '', margin: [0, 110, 0, 0] },
+
+                // ── Submitted To ────────────────────────────────────────
+                {
+                  stack: [
+                    {
+                      text: 'Submitted To: -',
+                      bold: true,
+                      fontSize: 13,
+                      color: '#000000',
+                      margin: [30, 0, 0, 6],
+                    },
+                    ...submittedToLines.map(line => ({
+                      text: line,
+                      fontSize: 12,
+                      color: '#000000',
+                      margin: [30, 0, 0, 3],
+                    })),
+                  ],
+                  margin: [0, 0, 0, 30],
+                },
+
+                // ── Submitted By ────────────────────────────────────────
+                {
+                  stack: [
+                    {
+                      text: 'Submitted By: -',
+                      bold: true,
+                      fontSize: 13,
+                      color: '#000000',
+                      margin: [30, 0, 0, 6],
+                    },
+                    ...submittedByLines.map(line => ({
+                      text: line,
+                      fontSize: 12,
+                      color: '#000000',
+                      margin: [30, 0, 0, 3],
+                    })),
+                  ],
+                },
+
+              ], // end stack
             }
           ]
+        ]
+      },
+      // Thin outer border weight for the table wrapper
+      layout: {
+        hLineWidth: () => 2,
+        vLineWidth: () => 2,
+        hLineColor: () => borderClr,
+        vLineColor: () => borderClr,
+        paddingLeft:   () => 0,
+        paddingRight:  () => 0,
+        paddingTop:    () => 0,
+        paddingBottom: () => 0,
+      },
+    };
+  }
+
+  static generateProjectAtAGlance(projectData) {
+    const basic   = projectData.basicInfo    || {};
+    const pc      = projectData.projectCost  || {};
+    const mof     = projectData.meansOfFinance || {};
+    const be      = projectData.breakEvenAnalysis || {};
+    const dscr    = projectData.dscr         || {};
+    const tl      = projectData.termLoanDetails || {};
+
+    const blueHeader = '#1F6FB5';   // dark blue header fill
+    const blueText   = '#1565C0';   // blue used for numbered labels
+    const borderClr  = '#AAAAAA';
+
+    const totalCost   = this.safeGet(projectData, 'totalProjectRequirement');
+    const fixedCap    = pc.fixedCapital              || 0;
+    const workingCap  = pc.workingCapitalRequirement || 0;
+    const marginMoney = mof.marginMoney              || (totalCost * 0.05);
+    const bankLoan    = mof.bankLoan                 || (totalCost * 0.95);
+    const marginPct   = mof.marginPercent            || 5;
+    const bankPct     = 100 - marginPct;
+    const tenure      = Math.ceil((tl.tenureMonths   || basic.loanTenure * 12 || 60) / 12);
+    const moratorium  = tl.moratoriumMonths          || basic.moratorium   || 6;
+    const avgDSCR     = dscr.averageDSCR             || 0;
+    const bepPct      = be.bepPercent                || 0;
+    const employment  = basic.employmentType         || basic.employmentCount || 'N/A';
+
+    // helper: thin border on all 4 sides
+    const border = (color = borderClr) => ({
+      hLineWidth: () => 0.7,
+      vLineWidth: () => 0.7,
+      hLineColor: () => color,
+      vLineColor: () => color,
+      paddingLeft:   () => 8,
+      paddingRight:  () => 8,
+      paddingTop:    () => 7,
+      paddingBottom: () => 7,
+    });
+
+    // helper: build a standard row  [label col | separator col | value col]
+    const row = (num, label, value, { sub = false, bold = false } = {}) => [
+      {
+        text: num,
+        fontSize: sub ? 11 : 12,
+        bold: !sub,
+        color: sub ? '#000000' : blueText,
+        border: [true, false, false, true],
+      },
+      {
+        text: label,
+        fontSize: sub ? 11 : 12,
+        bold: !sub || bold,
+        color: sub ? '#000000' : blueText,
+        border: [false, false, false, true],
+      },
+      {
+        text: ':',
+        fontSize: 12,
+        alignment: 'center',
+        border: [false, false, false, true],
+      },
+      {
+        text: value,
+        fontSize: sub ? 11 : 12,
+        color: '#000000',
+        border: [false, false, true, true],
+      },
+    ];
+
+    const tableBody = [
+      // ── header row ──────────────────────────────────────────
+      [
+        {
+          text: 'PROJECT AT A GLANCE',
+          colSpan: 4,
+          alignment: 'center',
+          bold: true,
+          fontSize: 14,
+          color: '#FFFFFF',
+          fillColor: blueHeader,
+          border: [true, true, true, true],
+          margin: [0, 4, 0, 4],
+        },
+        {}, {}, {},
+      ],
+
+      // ── blank spacer row ────────────────────────────────────
+      [
+        { text: '', colSpan: 4, border: [true, false, true, false], margin: [0, 4, 0, 4] },
+        {}, {}, {},
+      ],
+
+      // 1. Name of the Unit
+      row('1.', 'Name of the Unit',       basic.businessName   || 'N/A'),
+
+      // 2. Name of the promoter
+      row('2.', 'Name of the promoter',   basic.promoterName   || 'N/A'),
+
+      // 3. Category of the project
+      row('3.', 'Category of the project', basic.businessType  || basic.businessName || 'N/A'),
+
+      // 4. Total Project Cost
+      row('4.', 'Total Project Cost',     `₹ ${this.formatNumber(totalCost)}`, { bold: true }),
+
+      //    A) Fixed Capital
+      row('A)', 'Fixed Capital',          `₹ ${this.formatNumber(fixedCap)}`,   { sub: true }),
+
+      //    B) Working Capital
+      row('B)', 'Working Capital',        `₹ ${this.formatNumber(workingCap)}`, { sub: true }),
+
+      // 5. Source of Fund
+      row('5.', 'Source of Fund',         ''),
+
+      //    A) Margin Money
+      row('A)', `Margin Money @${marginPct}%`, `₹ ${this.formatNumber(marginMoney)}`, { sub: true }),
+
+      //    B) Loan Under Financial Institute
+      row('B)', `Loan Under Financial\nInstitute @${bankPct}%`, `₹ ${this.formatNumber(bankLoan)}`, { sub: true }),
+
+      // 6. Loan Tenure
+      row('6.', 'Loan Tenure',            `${tenure} Year`),
+
+      // 7. Moratorium
+      row('7.', 'Moratorium',             `: ${moratorium} Month`),
+
+      // 8. BEP
+      row('8.', 'BEP',                    `: ${this.formatNumber(bepPct)}%`),
+
+      // 9. Average DSCR
+      row('9.', 'Average DSCR',           `: ${this.formatNumber(avgDSCR)}`),
+
+      // 10. Employment Provision
+      row('10.', 'Employment Provision',  `${employment}`),
+    ];
+
+    return {
+      stack: [
+        {
+          table: {
+            widths: ['10%', '40%', '5%', '45%'],
+            body: tableBody,
+          },
+          layout: border(),
         }
       ]
     };
@@ -223,8 +454,12 @@ export class PDFService {
 
   static generateExecutiveSummary(projectData) {
     const cost = this.safeGet(projectData, 'totalProjectRequirement');
-    const mof = projectData.meansOfFinance || {};
     const basic = projectData.basicInfo || {};
+    
+    // Calculate new values: Bank Loan = Total - 5% of Total, Margin = 5% of Total
+    const bankLoan = cost * 0.95;
+    const marginMoney = cost * 0.05;
+    
     return {
       stack: [
         { text: 'EXECUTIVE SUMMARY', style: 'header' },
@@ -235,8 +470,8 @@ export class PDFService {
             body: [
               [{ text: 'Project Parameter', style: 'tableHeader' }, { text: 'Value', style: 'tableHeader' }],
               [{ text: 'Total Project Cost', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(cost)}`, style: 'tableCellRight', bold: true }],
-              [{ text: 'Bank Loan Amount', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(mof.bankLoan || 0)}`, style: 'tableCellRight' }],
-              [{ text: 'Promoter Margin', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(mof.marginMoney || 0)}`, style: 'tableCellRight' }],
+              [{ text: 'Bank Loan Amount', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(bankLoan)}`, style: 'tableCellRight' }],
+              [{ text: 'Promoter Margin', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(marginMoney)}`, style: 'tableCellRight' }],
               [{ text: 'Employment Generation', style: 'tableCellLeft' }, { text: `${basic.employmentCount || 0} Persons`, style: 'tableCellRight' }],
               [{ text: 'Average DSCR', style: 'tableCellLeft' }, { text: this.formatNumber(this.safeGet(projectData, 'dscr.averageDSCR')), style: 'tableCellRight', bold: true }],
               [{ text: 'Break-Even Point (%)', style: 'tableCellLeft' }, { text: `${this.formatNumber(this.safeGet(projectData, 'breakEvenAnalysis.bepPercent'))}%`, style: 'tableCellRight' }]

@@ -77,6 +77,12 @@ export default function ProjectForm() {
           businessType: data.businessType,
           schemeName: data.schemeName,
           employmentCount: parseInt(data.employmentCount) || 0,
+          district: data.district,
+          state: data.state,
+          guardianName: data.guardianName,
+          locality: data.locality,
+          city: data.city,
+          pinCode: data.pinCode,
           introduction: data.introduction,
           assumptions: data.assumptions
         },
@@ -217,12 +223,63 @@ export default function ProjectForm() {
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="form-label">Scheme Name</label>
-                <input {...register('schemeName')} className="form-input" placeholder="e.g., Mudra, PM SVANIDHI" />
+                <label className="form-label">Scheme Name *</label>
+                <select {...register('schemeName', { required: true })} className="form-input">
+                  <option value="">Select a scheme</option>
+                  <option value="PM SVANIDHI">PM SVANIDHI</option>
+                  <option value="Pradhan Mantri Mudra Yojana">Pradhan Mantri Mudra Yojana</option>
+                  <option value="Stand-Up India">Stand-Up India</option>
+                  <option value="Swabalamban">Swabalamban</option>
+                  <option value="PMEGP">PMEGP (Pradhan Mantri Employment Generation Programme)</option>
+                  <option value="CGTMSE">CGTMSE (Credit Guarantee Scheme)</option>
+                  <option value="SIDBI">SIDBI Scheme</option>
+                  <option value="Other">Other</option>
+                </select>
+                {errors.schemeName && <span className="text-red-500 text-sm">Required</span>}
               </div>
               <div>
                 <label className="form-label">Employment Count</label>
                 <input {...register('employmentCount', { pattern: /^\d+$/ })} type="number" className="form-input" placeholder="Number of employees" />
+              </div>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded mb-6 border border-blue-200">
+              <p className="text-sm text-blue-900 font-semibold mb-2">Address & Location Details (for Cover Page):</p>
+              <p className="text-sm text-blue-900">These details will appear on the DPR cover page</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">District *</label>
+                <input {...register('district', { required: true })} className="form-input" placeholder="e.g., Dharmanagar" />
+                {errors.district && <span className="text-red-500 text-sm">Required</span>}
+              </div>
+              <div>
+                <label className="form-label">State *</label>
+                <input {...register('state', { required: true })} className="form-input" placeholder="e.g., North Tripura" />
+                {errors.state && <span className="text-red-500 text-sm">Required</span>}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Locality</label>
+                <input {...register('locality')} className="form-input" placeholder="e.g., Narendra Nagar" />
+              </div>
+              <div>
+                <label className="form-label">City</label>
+                <input {...register('city')} className="form-input" placeholder="e.g., Damcherra" />
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Pin Code</label>
+                <input {...register('pinCode')} className="form-input" placeholder="e.g., 799256" />
+              </div>
+              <div>
+                <label className="form-label">Guardian Name (if applicable)</label>
+                <input {...register('guardianName')} className="form-input" placeholder="Leave empty if not applicable" />
               </div>
             </div>
 
