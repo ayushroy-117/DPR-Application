@@ -290,6 +290,12 @@ const projectSchema = new mongoose.Schema({
     wcLoanBelowSalesLimit: Boolean // CC Loan <= 25% of annual sales
   },
 
+  // Trading Audit (Helps identify BUG 4 issues)
+  tradingAudit: {
+    warnings: [String],
+    info: [String]
+  },
+
   // Tax Settings
   taxSettings: {
     taxPercent: { type: Number, default: 0 }

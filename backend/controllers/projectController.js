@@ -142,15 +142,17 @@ export const calculateFinancials = async (req, res) => {
     // Update projectCost with the calculated working capital requirement for persistence
     project.projectCost.workingCapitalRequirement = workingCapitalRequirement;
 
-    // ✅ STEP 4: Calculate Means of Finance (Apply margin to both)
+    // ✅ STEP 4: Calculate Means of Finance (Scheme-Aware - FIXES BUG 1)
     const meansOfFinanceData = project.meansOfFinance || {};
     const marginPercent = meansOfFinanceData.marginPercent || 5;
+    const schemeName = project.basicInfo?.schemeName || 'SWABALAMBAN'; // Get scheme from project
     
     const meansOfFinance = FinancialCalculations.calculateMeansOfFinance(
       fixedCapital,
       workingCapitalRequirement,
       marginPercent,
-      meansOfFinanceData.manualWCLoanAmount
+      meansOfFinanceData.manualWCLoanAmount,
+      schemeName // Pass scheme to calculate correctly
     );
     
     project.meansOfFinance = {
@@ -275,16 +277,16 @@ export const calculateFinancials = async (req, res) => {
       meansOfFinance.wcLoan,
       wcInterestRate,
       taxPercent,
-      tradingDetails
+      tradingDetails,
+      schemeName // Pass scheme for tax calculation
     );
     project.profitability = profitability;
 
-    // ✅ STEP 12: Calculate DSCR
-    const totalDepreciation = depreciationSchedule.totalDep[0] || 0;
+    // ✅ STEP 12: Calculate DSCR (FIXES BUG 3 - Uses yearly depreciation)
     const dscr = FinancialCalculations.calculateDSCR(
       profitability,
       repaymentSchedule,
-      totalDepreciation
+      depreciationSchedule // Pass full depreciation schedule for yearly values
     );
     project.dscr = dscr;
 
@@ -333,7 +335,16 @@ export const calculateFinancials = async (req, res) => {
       breakEven,
       meansOfFinance.wcLoan
     );
+    
+    // Trading Details Audit (Helps identify BUG 4 issues)
+    const tradingAudit = FinancialCalculations.validateTradingDetails(
+      revenueProjections,
+      profitability,
+      tradingDetails
+    );
+    
     project.validations = validations;
+    project.tradingAudit = tradingAudit;
 
     // ✅ STEP 17: Verify Balance Sheet Balances
     const balanceSheetValidation = balanceSheet.map((bs, i) => ({
@@ -356,7 +367,8 @@ export const calculateFinancials = async (req, res) => {
         averageDSCR: dscr.averageDSCR,
         bepPercent: breakEven.bepPercent,
         validations,
-        balanceSheetValidation
+        balanceSheetValidation,
+        tradingAudit
       }
     });
   } catch (error) {
