@@ -35,23 +35,23 @@ export class FinancialCalculations {
   }
 
   // 3️⃣ MEANS OF FINANCE
-  static calculateMeansOfFinance(fixedCapital, workingCapitalRequirement, marginPercent, manualWCLoanAmount = null) {
+  static calculateMeansOfFinance(fixedCapital, workingCapitalRequirement, marginPercent = 5, manualWCLoanAmount = null, scheme = 'PMEGP') {
     const totalRequirement = fixedCapital + workingCapitalRequirement;
     
-    // Apply marginPercent to fixedCapital for term loan
-    const termLoanMargin = (fixedCapital * marginPercent) / 100;
-    const termLoan = fixedCapital - termLoanMargin;
+    // For PMEGP scheme: Fixed capital is NOT deducted by margin
+    // Term Loan = Fixed Capital (full amount, no margin deduction)
+    const termLoan = fixedCapital;
     
-    // Apply 5% margin money deduction specifically on working capital component as per requirement
-    const wcMarginPercent = 5;
+    // Apply margin percentage ONLY to working capital component
+    const wcMarginPercent = marginPercent; // Use the provided marginPercent for WC (typically 5% for PMEGP)
     const wcMarginMoney = (workingCapitalRequirement * wcMarginPercent) / 100;
     
     const wcLoan = manualWCLoanAmount !== null && manualWCLoanAmount !== undefined
       ? manualWCLoanAmount 
       : workingCapitalRequirement - wcMarginMoney;
 
-    // Total margin money is the sum of fixed capital margin and working capital margin
-    const marginMoney = termLoanMargin + wcMarginMoney;
+    // Total margin money = margin deduction from working capital only
+    const marginMoney = wcMarginMoney;
     
     // Total bank loan is the sum of term loan and working capital loan
     const bankLoan = termLoan + wcLoan;

@@ -47,23 +47,44 @@ totalProjectRequirement = fixedCapital + workingCapitalRequirement
 ### Input:
 - `fixedCapital` - Cost of fixed assets
 - `workingCapitalRequirement` - Initial working capital requirement
-- `marginPercent` - Promoter's margin percentage (e.g., 10%)
+- `marginPercent` - Promoter's margin percentage (e.g., 5% for PMEGP)
+- `scheme` - Government scheme (e.g., 'PMEGP', default: 'PMEGP')
 
-### Calculation:
+### Calculation (PMEGP Scheme):
 ```
 totalRequirement = fixedCapital + workingCapitalRequirement
-marginMoney = totalRequirement × (marginPercent / 100)
-bankLoan = totalRequirement - marginMoney
 
-// Split based on asset type
-termLoan = fixedCapital - (fixedCapital × marginPercent / 100)
-wcLoan = workingCapitalRequirement - (workingCapitalRequirement × marginPercent / 100)
+// For PMEGP: Margin applies ONLY to working capital component
+// Fixed capital has NO margin deduction
+termLoan = fixedCapital  // Full amount, NO margin reduction
+
+// Margin is deducted from working capital
+wcMarginMoney = workingCapitalRequirement × (marginPercent / 100)  // e.g., 5%
+wcLoan = workingCapitalRequirement - wcMarginMoney
+
+// Total margin money from working capital only
+marginMoney = wcMarginMoney
+
+// Total bank financing
+bankLoan = termLoan + wcLoan
+```
+
+### Example (PMEGP with 5% margin):
+```
+Fixed Capital: ₹20,000
+Working Capital: ₹80,000
+Total Requirement: ₹100,000
+
+Term Loan: ₹20,000 (no margin deduction)
+Margin Money (5% of WC): ₹4,000
+WC Loan: ₹76,000
+Bank Financing: ₹96,000
 ```
 
 ### Output:
 - `totalRequirement` - Total project cost
-- `marginMoney` - Self-contribution
-- `bankLoan` - Total bank financing
+- `marginMoney` - Self-contribution (margin from WC only)
+- `bankLoan` - Total bank financing (Term Loan + WC Loan)
 - `termLoan` - Loan for Fixed Assets (subject to EMI)
 - `wcLoan` - CC Loan for Working Capital (revolving)
 
