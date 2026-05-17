@@ -21,12 +21,14 @@ export const generatePDF = async (req, res) => {
       
       const monthlyExpensesData = project.monthlyExpenses || {};
       const marginPercent = project.meansOfFinance?.marginPercent || 5;
+      const schemeName = project.basicInfo?.schemeName || 'SWABALAMBAN';
       
       const meansOfFinance = FinancialCalculations.calculateMeansOfFinance(
         fixedCapital,
         workingCapitalRequirement,
         marginPercent,
-        project.meansOfFinance?.manualWCLoanAmount
+        project.meansOfFinance?.manualWCLoanAmount,
+        schemeName
       );
 
       const revenueData = project.revenueProjection || {};
@@ -95,14 +97,74 @@ export const generatePDF = async (req, res) => {
         proprietorDrawings
       );
 
-      // ✅ STEP 15: Generate Balance Sheet
-      project.balanceSheet = FinancialCalculations.generateBalanceSheet(
+      // ✅ STEP 15: Generate Balance Sheet (using correct function with all 8 parameters)
+      project.balanceSheet = FinancialCalculations.generateBalanceSheetProper(
         project,
         profitability,
         repaymentSchedule,
         meansOfFinance,
-        project.cashFlow
+        project.cashFlow,
+        depreciationSchedule,
+        tradingDetails,
+        tradeReceivables
       );
+
+      // ✅ STEP 16: Store all calculated values back to project object for PDF generation
+      // (These were calculated but not persisted, causing zeros in PDF output)
+      project.projectCost = projectCost;
+      project.meansOfFinance = meansOfFinance;
+      
+      // Store revenue and expense projections
+      if (!project.revenueProjection) project.revenueProjection = {};
+      if (!project.expenseProjection) project.expenseProjection = {};
+      project.revenueProjection.yearlyProjections = revenueProjections;
+      project.expenseProjection.yearlyProjections = expenseProjections;
+      
+      // Store depreciation schedule
+      if (!project.depreciation) project.depreciation = {};
+      project.depreciation.schedule = depreciationSchedule.schedule;
+      project.depreciation.totalDepreciation = depreciationSchedule.totalDepreciation;
+      
+      // Store term loan details and repayment schedule
+      if (!project.termLoanDetails) project.termLoanDetails = {};
+      project.termLoanDetails.repaymentSchedule = repaymentSchedule.schedule;
+      project.termLoanDetails.loanAmount = meansOfFinance.termLoan;
+      
+      // Store cash flow (already stored above, but ensuring it's persisted)
+      project.cashFlow = project.cashFlow || {};
+      
+      // ✅ STEP 17: Calculate DSCR (Debt Service Coverage Ratio) - was missing entirely
+      if (FinancialCalculations.calculateDSCR) {
+        const dscr = FinancialCalculations.calculateDSCR(
+          profitability,
+          repaymentSchedule,
+          depreciationSchedule
+        );
+        project.dscr = dscr;
+      }
+
+      // ✅ STEP 18: Calculate Break-Even Analysis with proper fixed costs
+      if (FinancialCalculations.calculateBreakEven && depreciationSchedule && repaymentSchedule) {
+        // Extract Year 1 data for BEP calculation
+        const depreciationYear1 = depreciationSchedule.schedule?.[0]?.depreciation || 0;
+        const interestTLYear1 = repaymentSchedule.schedule
+          ?.filter(s => s.month <= 12)  // First 12 months
+          .reduce((sum, s) => sum + (s.interest || 0), 0) || 0;
+        
+        // WC Interest = Annual WC Loan * Annual Rate / 100
+        const wcInterestRate = project.meansOfFinance?.wcInterestRate || 9;
+        const wcLoanAmount = meansOfFinance.wcLoan || 0;
+        const interestWCYear1 = (wcLoanAmount * wcInterestRate) / 100;
+        
+        const breakEvenAnalysis = FinancialCalculations.calculateBreakEven(
+          expenseProjections,
+          revenueProjections,
+          depreciationYear1,
+          interestTLYear1,
+          interestWCYear1
+        );
+        project.breakEvenAnalysis = breakEvenAnalysis;
+      }
       
       // ✅ AUTO-SAVE: Persist calculated financial statements to database
       try {
@@ -114,6 +176,31 @@ export const generatePDF = async (req, res) => {
         // Don't throw error here - allow PDF generation to proceed even if save fails
         // The calculations are in memory and will be used for PDF generation
       }
+    }
+
+    // ✅ ENSURE meansOfFinance components are always calculated (even if using cached project)
+    // This fixes the issue where existing projects have 0 values for components
+    if (!project.meansOfFinance?.termLoanComponent || project.meansOfFinance.termLoanComponent === 0) {
+      const projectCostData = project.projectCost || {};
+      const fixedCapital = projectCostData.fixedCapital || FinancialCalculations.calculateProjectCost(projectCostData).fixedCapital;
+      const workingCapitalRequirement = projectCostData.workingCapitalRequirement || 0;
+      const marginPercent = project.meansOfFinance?.marginPercent || 5;
+      const schemeName = project.basicInfo?.schemeName || 'SWABALAMBAN';
+      
+      // Recalculate meansOfFinance to get correct components
+      const meansOfFinanceRecalc = FinancialCalculations.calculateMeansOfFinance(
+        fixedCapital,
+        workingCapitalRequirement,
+        marginPercent,
+        project.meansOfFinance?.manualWCLoanAmount,
+        schemeName
+      );
+      
+      // Merge with existing meansOfFinance but update components
+      project.meansOfFinance = {
+        ...project.meansOfFinance,
+        ...meansOfFinanceRecalc
+      };
     }
 
     console.log('Generating PDF for project:', project._id);

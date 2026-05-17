@@ -82,6 +82,53 @@ export const updateProject = async (req, res) => {
       console.log('✅ Calculated fixedCapital:', fixedCapitalCalculated.fixedCapital);
     }
 
+    // 🔧 FIX: Calculate meansOfFinance components if meansOfFinance or projectCost is being updated
+    if (projectData.meansOfFinance || projectData.projectCost) {
+      const currentProject = await Project.findById(req.params.id);
+      
+      // Get the final values after updates
+      const projectCostData = projectData.projectCost || currentProject.projectCost || {};
+      const meansOfFinanceData = projectData.meansOfFinance || currentProject.meansOfFinance || {};
+      
+      // Calculate fixed and working capital
+      const projectCost = FinancialCalculations.calculateProjectCost(projectCostData);
+      const fixedCapital = projectCost.fixedCapital;
+      let workingCapitalRequirement = projectCostData.workingCapitalRequirement || 0;
+      
+      // If not manually set, try to calculate from monthly expenses
+      if (!workingCapitalRequirement || workingCapitalRequirement === 0) {
+        const monthlyExpensesData = projectData.monthlyExpenses || currentProject.monthlyExpenses || {};
+        const expensesCalculated = FinancialCalculations.calculateWorkingCapital(
+          monthlyExpensesData,
+          monthlyExpensesData.reserveMonths || 3
+        );
+        workingCapitalRequirement = expensesCalculated.workingCapital || 0;
+      }
+      
+      // Get scheme and margin percent
+      const marginPercent = meansOfFinanceData.marginPercent || 5;
+      const basicInfo = projectData.basicInfo || currentProject.basicInfo || {};
+      const schemeName = basicInfo.schemeName || currentProject.basicInfo?.schemeName || 'SWABALAMBAN';
+      
+      // Calculate meansOfFinance with components
+      const meansOfFinanceCalculated = FinancialCalculations.calculateMeansOfFinance(
+        fixedCapital,
+        workingCapitalRequirement,
+        marginPercent,
+        meansOfFinanceData.manualWCLoanAmount,
+        schemeName
+      );
+      
+      // Merge calculated values back
+      projectData.meansOfFinance = {
+        ...meansOfFinanceData,
+        ...meansOfFinanceCalculated
+      };
+      
+      console.log('✅ Calculated termLoanComponent:', meansOfFinanceCalculated.termLoanComponent);
+      console.log('✅ Calculated wcLoanComponent:', meansOfFinanceCalculated.wcLoanComponent);
+    }
+
     const project = await Project.findByIdAndUpdate(req.params.id, projectData, { new: true });
     res.json({ message: 'Project updated', project });
   } catch (error) {
@@ -134,12 +181,24 @@ export const calculateFinancials = async (req, res) => {
     };
 
     // ✅ STEP 3: Calculate Total Project Requirement (Fixed + WC Requirement)
+    // FIX BUG 1: Use user's manual working capital input if provided, don't override it
     const fixedCapital = projectCost.fixedCapital;
-    const workingCapitalRequirement = expensesCalculated.workingCapital || 0;
+    let workingCapitalRequirement = 0;
+    
+    if (project.projectCost?.workingCapitalRequirement && project.projectCost.workingCapitalRequirement > 0) {
+      // Use user's manual working capital input as authoritative source
+      workingCapitalRequirement = project.projectCost.workingCapitalRequirement;
+      console.log('✅ Using user-provided Working Capital:', workingCapitalRequirement);
+    } else {
+      // Only calculate from expenses if user didn't provide manual input
+      workingCapitalRequirement = expensesCalculated.workingCapital || 0;
+      console.log('✅ Calculated Working Capital from expenses:', workingCapitalRequirement);
+    }
+    
     const totalProjectRequirement = fixedCapital + workingCapitalRequirement;
     project.totalProjectRequirement = totalProjectRequirement;
     
-    // Update projectCost with the calculated working capital requirement for persistence
+    // Update projectCost with the working capital requirement for persistence
     project.projectCost.workingCapitalRequirement = workingCapitalRequirement;
 
     // ✅ STEP 4: Calculate Means of Finance (Scheme-Aware - FIXES BUG 1)
@@ -290,12 +349,29 @@ export const calculateFinancials = async (req, res) => {
     );
     project.dscr = dscr;
 
-    // ✅ STEP 13: Calculate Break-Even Analysis
-    const breakEven = FinancialCalculations.calculateBreakEven(
-      expenseProjections,
-      revenueProjections
-    );
-    project.breakEvenAnalysis = breakEven;
+    // ✅ STEP 13: Calculate Break-Even Analysis with proper fixed costs
+    let breakEven = {}; // Initialize with empty object as default
+    if (FinancialCalculations.calculateBreakEven && depreciationSchedule && repaymentSchedule) {
+      // Extract Year 1 data for BEP calculation
+      const depreciationYear1 = depreciationSchedule.schedule?.[0]?.depreciation || 0;
+      const interestTLYear1 = repaymentSchedule.schedule
+        ?.filter(s => s.month <= 12)  // First 12 months
+        .reduce((sum, s) => sum + (s.interest || 0), 0) || 0;
+      
+      // WC Interest = Annual WC Loan * Annual Rate / 100
+      const wcInterestRate = meansOfFinanceData.wcInterestRate || 9;
+      const wcLoanAmount = meansOfFinance.wcLoan || 0;
+      const interestWCYear1 = (wcLoanAmount * wcInterestRate) / 100;
+      
+      breakEven = FinancialCalculations.calculateBreakEven(
+        expenseProjections,
+        revenueProjections,
+        depreciationYear1,
+        interestTLYear1,
+        interestWCYear1
+      );
+      project.breakEvenAnalysis = breakEven;
+    }
 
     // ✅ STEP 14: Generate Cash Flow Statement (Indirect Method) - Uses profitability
     const tradeReceivables = project.tradeReceivables || [];

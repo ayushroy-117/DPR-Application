@@ -277,14 +277,14 @@ export default function ProjectView() {
                     <span className="font-semibold">Term Loan</span>
                     <span className="text-xs text-blue-600">On Fixed Assets</span>
                   </div>
-                  <span className="font-bold text-lg">₹{mof.termLoan?.toLocaleString() || 0}</span>
+                  <span className="font-bold text-lg">₹{mof.termLoanComponent?.toLocaleString() || 0}</span>
                 </li>
                 <li className="flex justify-between p-3 bg-indigo-50 rounded">
                   <div className="flex flex-col">
                     <span className="font-semibold">CC Loan</span>
                     <span className="text-xs text-indigo-600">On Working Capital</span>
                   </div>
-                  <span className="font-bold text-lg">₹{mof.wcLoan?.toLocaleString() || 0}</span>
+                  <span className="font-bold text-lg">₹{mof.wcLoanComponent?.toLocaleString() || 0}</span>
                 </li>
                 <li className="flex justify-between p-3 bg-purple-50 rounded">
                   <div className="flex flex-col">

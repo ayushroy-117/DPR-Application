@@ -68,7 +68,9 @@ const projectSchema = new mongoose.Schema({
     termLoan: { type: Number, default: 0 },
     wcLoanPercent: { type: Number, default: 30 },
     wcLoan: { type: Number, default: 0 },
-    manualWCLoanAmount: { type: Number, default: null }
+    manualWCLoanAmount: { type: Number, default: null },
+    termLoanComponent: { type: Number, default: 0 },
+    wcLoanComponent: { type: Number, default: 0 }
   },
 
   // Revenue Projection (5 Years)

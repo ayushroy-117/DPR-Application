@@ -63,12 +63,22 @@ export class FinancialCalculations {
     // Verify funding sources balance
     const totalFunding = marginMoney + bankLoan;
     
+    // FIX BUG 1: Calculate post-margin component amounts for display only
+    // These show what the bank finances after margin deduction
+    // Formula: Component = Requirement × (1 - marginPercent/100)
+    const marginMultiplier = (100 - marginPercent) / 100;
+    const termLoanComponent = fixedCapital * marginMultiplier;  // Use fixedCapital directly, not termLoan
+    const wcLoanComponent = workingCapitalRequirement * marginMultiplier;  // Use workingCapitalRequirement directly, not wcLoan
+    
     return {
       totalRequirement,
       marginMoney: parseFloat(marginMoney.toFixed(2)),
       bankLoan: parseFloat(bankLoan.toFixed(2)),
       termLoan: parseFloat(termLoan.toFixed(2)),
       wcLoan: parseFloat(wcLoan.toFixed(2)),
+      // Post-margin component amounts (for display in Means of Finance table only)
+      termLoanComponent: parseFloat(termLoanComponent.toFixed(2)),
+      wcLoanComponent: parseFloat(wcLoanComponent.toFixed(2)),
       marginBreakdown: marginResult.marginBreakdown,
       schemeKey: schemeConfig.key,
       schemeName: schemeConfig.name,
@@ -406,22 +416,46 @@ export class FinancialCalculations {
   }
 
   // 🔟 BREAK-EVEN ANALYSIS
-  static calculateBreakEven(expenseProjections, revenueProjections) {
-    // Using Year 1 data for break-even
-    const variableCost = (expenseProjections[0].electricity + expenseProjections[0].misc) * 0.5; // 50% variable
-    const fixedCost = expenseProjections[0].rent + expenseProjections[0].salary + expenseProjections[0].maintenance;
-    const revenue = revenueProjections[0].actualRevenue;
-    const contribution = revenue - variableCost;
-    const contributionRatio = revenue > 0 ? contribution / revenue : 0;
+  static calculateBreakEven(expenseProjections, revenueProjections, depreciationYear1 = 0, interestTLYear1 = 0, interestWCYear1 = 0) {
+    // Using Year 1 data for break-even analysis
+    const year1Expense = expenseProjections[0];
+    const year1Revenue = revenueProjections[0].actualRevenue;
+    
+    // ✅ FIX BUG 2: Fixed costs = ALL non-variable items
+    // Fixed costs include: salary + electricity + rent + maintenance + misc + depreciation + interest on TL + interest on WC
+    const salaryFixedCost = year1Expense.salary || 0;
+    const electricityFixedCost = year1Expense.electricity || 0;  // Mostly fixed for retail operations
+    const rentFixedCost = year1Expense.rent || 0;
+    const maintenanceFixedCost = year1Expense.maintenance || 0;
+    const miscFixedCost = year1Expense.misc || 0;
+    
+    const fixedCost = salaryFixedCost + electricityFixedCost + rentFixedCost + maintenanceFixedCost + miscFixedCost + depreciationYear1 + interestTLYear1 + interestWCYear1;
+    
+    // Variable costs = 0 for trading (all costs are fixed in this business model)
+    // In a trading business, most expenses are semi-fixed or fixed, not truly variable
+    const variableCost = 0;
+    
+    const contribution = year1Revenue - variableCost;
+    const contributionRatio = year1Revenue > 0 ? contribution / year1Revenue : 0;
 
     const bepPercent = contributionRatio > 0 ? (fixedCost / contribution) * 100 : 0;
     const bepSales = contributionRatio > 0 ? fixedCost / contributionRatio : 0;
-    const marginOfSafety = revenue - bepSales;
-    const marginOfSafetyPercent = revenue > 0 ? (marginOfSafety / revenue) * 100 : 0;
+    const marginOfSafety = year1Revenue - bepSales;
+    const marginOfSafetyPercent = year1Revenue > 0 ? (marginOfSafety / year1Revenue) * 100 : 0;
 
     return {
       variableCost: parseFloat(variableCost.toFixed(2)),
       fixedCost: parseFloat(fixedCost.toFixed(2)),
+      fixedCostBreakdown: {
+        salary: parseFloat(salaryFixedCost.toFixed(2)),
+        electricity: parseFloat(electricityFixedCost.toFixed(2)),
+        rent: parseFloat(rentFixedCost.toFixed(2)),
+        maintenance: parseFloat(maintenanceFixedCost.toFixed(2)),
+        misc: parseFloat(miscFixedCost.toFixed(2)),
+        depreciation: parseFloat(depreciationYear1.toFixed(2)),
+        interestOnTermLoan: parseFloat(interestTLYear1.toFixed(2)),
+        interestOnWCLoan: parseFloat(interestWCYear1.toFixed(2))
+      },
       contribution: parseFloat(contribution.toFixed(2)),
       contributionRatio: parseFloat(contributionRatio.toFixed(2)),
       bepPercent: parseFloat(bepPercent.toFixed(2)),
@@ -576,7 +610,10 @@ export class FinancialCalculations {
     return cashFlow;
   }
 
-  // 12. BALANCE SHEET - PROPER METHOD (5 YEARS) - FIXES BUG 2
+  // ✅ 12. BALANCE SHEET - PRODUCTION FUNCTION (5 YEARS) - OFFICIAL METHOD
+  // This is the canonical balance sheet generation function. All other implementations are deprecated.
+  // Returns proper nested structure matching MongoDB schema with shareholderFunds, currentAssets, etc.
+  // Required for PDF generation and database persistence.
   static generateBalanceSheetProper(
     projectData,
     profitability,
@@ -678,51 +715,6 @@ export class FinancialCalculations {
       });
     }
 
-    return balanceSheet;
-  }
-
-  // 12B. LEGACY BALANCE SHEET (5 YEARS)
-  static generateBalanceSheet(projectData, profitability, repaymentSchedule, meansOfFinance, cashFlow) {
-    const balanceSheet = [];
-    let cumulativeRetainedEarnings = 0;
-    let fixedAssetsNet = projectData.projectCost.fixedCapital;
-
-    for (let i = 0; i < 5; i++) {
-      const year = i + 1;
-      const profit = profitability[i];
-      const cf = cashFlow[i];
-      
-      cumulativeRetainedEarnings += profit.profitAfterTax;
-      fixedAssetsNet -= profit.depreciation;
-
-      const termLoanOutstanding = repaymentSchedule.schedule[(i + 1) * 12 - 1]?.outstandingBalance || 0;
-
-      const liabilities = {
-        promoterCapital: meansOfFinance.marginMoney,
-        retainedEarnings: parseFloat(cumulativeRetainedEarnings.toFixed(2)),
-        termLoanOutstanding: parseFloat(termLoanOutstanding.toFixed(2)),
-        wcLoanOutstanding: parseFloat(meansOfFinance.wcLoan.toFixed(2)),
-        totalLiabilities: parseFloat((meansOfFinance.marginMoney + cumulativeRetainedEarnings + termLoanOutstanding + meansOfFinance.wcLoan).toFixed(2))
-      };
-
-      const assets = {
-        fixedAssetsNet: parseFloat(Math.max(0, fixedAssetsNet).toFixed(2)),
-        currentAssets: parseFloat((cf.closingBalance * 0.5).toFixed(2)), // Hypothetical split
-        cashBalance: parseFloat(cf.closingBalance.toFixed(2)),
-        totalAssets: parseFloat((Math.max(0, fixedAssetsNet) + cf.closingBalance + (cf.closingBalance * 0.5)).toFixed(2))
-      };
-
-      // Balancing act for simple representation
-      liabilities.totalLiabilities = liabilities.promoterCapital + liabilities.retainedEarnings + liabilities.termLoanOutstanding + liabilities.wcLoanOutstanding;
-      assets.totalAssets = liabilities.totalLiabilities; // Force balance for DPR representation
-      assets.currentAssets = assets.totalAssets - assets.fixedAssetsNet - assets.cashBalance;
-
-      balanceSheet.push({
-        year,
-        liabilities,
-        assets
-      });
-    }
     return balanceSheet;
   }
 

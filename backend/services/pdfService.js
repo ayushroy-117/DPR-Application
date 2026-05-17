@@ -577,8 +577,8 @@ export class PDFService {
               [{ text: 'Total Project Requirement', style: 'tableCellLeft', bold: true }, { text: this.formatNumber(required), style: 'tableCellRight', bold: true }],
               [{ text: `Promoter Margin (${mof.marginPercent || 0}%)`, style: 'tableCellLeft' }, { text: this.formatNumber(mof.marginMoney || 0), style: 'tableCellRight' }],
               [{ text: 'Bank Loan Assistance', style: 'tableCellLeft', bold: true }, { text: this.formatNumber(mof.bankLoan || 0), style: 'tableCellRight', bold: true }],
-              [{ text: '  - Term Loan Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.termLoan || 0), style: 'tableCellRight' }],
-              [{ text: '  - Working Capital (CC) Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.wcLoan || 0), style: 'tableCellRight' }],
+              [{ text: '  - Term Loan Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.termLoanComponent || 0), style: 'tableCellRight' }],
+              [{ text: '  - Working Capital (CC) Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.wcLoanComponent || 0), style: 'tableCellRight' }],
               [{ text: 'Total Funding Sources', bold: true, style: 'tableCellLeft' }, { text: this.formatNumber(required), bold: true, style: 'tableCellRight' }]
             ]
           },
@@ -901,8 +901,16 @@ export class PDFService {
           if (!item.isSubheader) {
             const parts = item.path.split('.');
             let obj = b;
-            parts.forEach(p => { obj = obj[p]; });
-            val = obj || 0;
+            // Safely navigate nested paths with null/undefined checks
+            for (const p of parts) {
+              if (obj && typeof obj === 'object') {
+                obj = obj[p];
+              } else {
+                obj = undefined;
+                break;
+              }
+            }
+            val = obj !== undefined && obj !== null ? obj : 0;
           }
           row.push({
             text: item.isSubheader ? '' : this.formatNumber(val, true),
@@ -915,10 +923,12 @@ export class PDFService {
       });
     });
 
-    // Add validation note
+    // Add validation note with safe defaults for isBalanced and balanceDifference
     const validationRows = [];
     bs.forEach(b => {
-      validationRows.push(`Year ${b.year}: ${b.isBalanced ? '✓ Balanced' : '✗ Difference: ' + this.formatNumber(b.balanceDifference)}`);
+      const isBalanced = b.isBalanced !== undefined ? b.isBalanced : true;
+      const difference = b.balanceDifference !== undefined ? b.balanceDifference : 0;
+      validationRows.push(`Year ${b.year}: ${isBalanced ? '✓ Balanced' : '✗ Difference: ' + this.formatNumber(difference)}`);
     });
 
     return {
