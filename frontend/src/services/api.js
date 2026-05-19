@@ -36,13 +36,7 @@ export const projectService = {
   update: (id, data) => api.put(`/projects/${id}`, data),
   delete: (id) => api.delete(`/projects/${id}`),
   calculateFinancials: (id) => api.post(`/projects/${id}/calculate`),
-  generatePDF: (id) => {
-    const token = localStorage.getItem('token')
-    return axios.get(`${getBaseURL()}/pdf/generate/${id}`, {
-      responseType: 'blob',
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
-  }
+  generatePDF: (id) => api.get(`/pdf/generate/${id}`, { responseType: 'blob' })
 }
 
 export default api

@@ -5,7 +5,6 @@ import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 // Initialize pdfMake with fonts
 try {
   pdfMake.vfs = pdfFonts;
-  // Define Roboto as the default font
   pdfMake.fonts = {
     Roboto: {
       normal: 'Roboto-Regular.ttf',
@@ -18,35 +17,220 @@ try {
   console.warn('Font initialization warning:', e.message);
 }
 
-const width = 800;
-const height = 400;
+const width = 900;
+const height = 420;
 const chartJSNodeCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  DESIGN TOKENS
+// ─────────────────────────────────────────────────────────────────────────────
+const C = {
+  navy:       '#0D2137',
+  navyMid:    '#1A3A5C',
+  accent:     '#2E6DA4',
+  gold:       '#C8972A',
+  goldLight:  '#F5E6C8',
+  white:      '#FFFFFF',
+  offWhite:   '#F4F6F9',
+  tableAlt:   '#EEF3F8',
+  lightBlue:  '#E8F0F7',
+  midGrey:    '#8E9BAA',
+  darkGrey:   '#3D4A57',
+  borderGrey: '#CBD8E4',
+  green:      '#1B7A4A',
+  red:        '#C0392B',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  SHARED LAYOUT HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Standard table layout with navy header + gold rule + alternating rows */
+const proLayout = {
+  hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.4,
+  vLineWidth: () => 0.4,
+  hLineColor: (i) => (i === 1) ? C.gold : C.borderGrey,
+  vLineColor: () => C.borderGrey,
+  fillColor:  (row) => row === 0 ? C.navy : (row % 2 === 0 ? C.tableAlt : C.white),
+  paddingLeft:   () => 8,
+  paddingRight:  () => 8,
+  paddingTop:    () => 6,
+  paddingBottom: () => 6,
+};
+
+/** Lightweight layout for inner sub-tables (no coloured rows) */
+const lightLayout = {
+  hLineWidth: () => 0.4,
+  vLineWidth: () => 0.4,
+  hLineColor: () => C.borderGrey,
+  vLineColor: () => C.borderGrey,
+  paddingLeft:   () => 7,
+  paddingRight:  () => 7,
+  paddingTop:    () => 5,
+  paddingBottom: () => 5,
+};
+
+/** Section header bar (navy pill with gold underline) */
+const sectionHeader = (title) => ({
+  stack: [
+    {
+      canvas: [
+        { type: 'rect', x: 0, y: 0, w: 3, h: 18, r: 1, color: C.gold },
+      ],
+      relativePosition: { x: 0, y: 0 },
+    },
+    {
+      text: title,
+      fontSize: 12,
+      bold: true,
+      color: C.navy,
+      margin: [10, 0, 0, 0],
+    },
+  ],
+  margin: [0, 18, 0, 6],
+  // pdfmake doesn't support canvas + text in a true "side-by-side stack" natively,
+  // so we use a single-row table as the section banner instead (see below).
+});
+
+/** Better section banner – rendered as a table row for reliable colour fill */
+const sectionBanner = (title) => ({
+  table: {
+    widths: [4, '*'],
+    body: [[
+      { text: '', fillColor: C.gold, border: [false, false, false, false] },
+      {
+        text: title,
+        fontSize: 12,
+        bold: true,
+        color: C.navy,
+        fillColor: C.lightBlue,
+        border: [false, false, false, false],
+        margin: [6, 4, 0, 4],
+      },
+    ]],
+  },
+  layout: {
+    hLineWidth: () => 0,
+    vLineWidth: () => 0,
+    paddingLeft:   () => 0,
+    paddingRight:  () => 0,
+    paddingTop:    () => 0,
+    paddingBottom: () => 0,
+  },
+  margin: [0, 16, 0, 6],
+});
+
+/** Gold divider line */
+const goldRule = (marginTop = 2, marginBottom = 10) => ({
+  canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1.5, lineColor: C.gold }],
+  margin: [0, marginTop, 0, marginBottom],
+});
+
+/** KPI card row – accepts array of { label, value } objects */
+const kpiRow = (items) => {
+  // Fixed equal widths — '*' lets pdfmake distribute evenly without overflow
+  return {
+    table: {
+      widths: items.map(() => '*'),
+      body: [
+        items.map(item => ({
+          stack: [
+            {
+              // Value: scale font down so even "₹ 3,60,000.00" fits on one line
+              text: item.value,
+              fontSize: 9,
+              bold: true,
+              color: C.navy,
+              alignment: 'center',
+              // Allow wrapping only as last resort — tight padding handles the rest
+            },
+            {
+              text: item.label,
+              fontSize: 6.5,
+              color: C.midGrey,
+              alignment: 'center',
+              margin: [0, 2, 0, 0],
+            },
+          ],
+          fillColor: C.lightBlue,
+          // No per-cell margin — padding from layout is enough
+          border: [true, true, true, true],
+        })),
+      ],
+    },
+    layout: {
+      hLineWidth: () => 0.5,
+      vLineWidth: () => 0.5,
+      hLineColor: () => C.borderGrey,
+      vLineColor: () => C.borderGrey,
+      // Tight horizontal padding so numbers don't get squeezed
+      paddingLeft:   () => 3,
+      paddingRight:  () => 3,
+      paddingTop:    () => 8,
+      paddingBottom: () => 8,
+    },
+    margin: [0, 0, 0, 8],
+  };
+};
+
+/** Standard table header cell */
+const th = (text, align = 'center') => ({
+  text,
+  bold: true,
+  fontSize: 9,
+  color: C.white,
+  alignment: align,
+  margin: [0, 2, 0, 2],
+});
+
+/** Standard table body cell */
+const td = (text, align = 'center', opts = {}) => ({
+  text: String(text ?? ''),
+  fontSize: 9,
+  color: C.darkGrey,
+  alignment: align,
+  bold: opts.bold || false,
+  ...opts,
+});
+
+/** Highlight cell (totals / summary rows) */
+const tdHL = (text, align = 'right', navy = false) => ({
+  text: String(text ?? ''),
+  fontSize: 9,
+  bold: true,
+  color: navy ? C.white : C.navy,
+  alignment: align,
+  fillColor: navy ? C.navy : C.lightBlue,
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 export class PDFService {
-  // Helper function to safely format numbers
+  // ── unchanged helpers ──────────────────────────────────────────────────────
   static formatNumber(value, useAbsoluteValue = false) {
     const num = typeof value === 'number' ? value : parseFloat(value) || 0;
     const absNum = useAbsoluteValue ? Math.abs(num) : num;
     return absNum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // Helper function for charts
-  static async generateGrayscaleChart(labels, data, title, color = '#333333') {
+  static safeGet(obj, path, defaultValue = 0) {
+    const value = path.split('.').reduce((current, prop) => current?.[prop], obj);
+    return typeof value === 'number' ? value : defaultValue;
+  }
+
+  // ── chart generator (professional styled) ─────────────────────────────────
+  static async generateGrayscaleChart(labels, data, title, color = '#2E6DA4') {
     const configuration = {
-      type: 'line',
+      type: 'bar',
       data: {
-        labels: labels,
+        labels,
         datasets: [{
           label: title,
-          data: data,
-          fill: true,
+          data,
+          backgroundColor: color + 'CC',
           borderColor: color,
-          backgroundColor: color + '20', // Add transparency for fill
-          borderWidth: 3,
-          pointBackgroundColor: color,
-          pointRadius: 4,
-          tension: 0.4 // Smooth curves for minimalistic look
-        }]
+          borderWidth: 1.5,
+          borderRadius: 4,
+        }],
       },
       options: {
         plugins: {
@@ -54,81 +238,146 @@ export class PDFService {
           title: {
             display: true,
             text: title,
-            color: '#333333',
-            font: { size: 16, weight: '500' },
-            padding: { bottom: 20 }
-          }
+            color: C.navy,
+            font: { size: 14, weight: '600' },
+            padding: { bottom: 16 },
+          },
         },
         scales: {
           y: {
             beginAtZero: true,
-            ticks: { color: '#666666', font: { size: 10 } },
-            grid: { color: '#f0f0f0' },
-            border: { display: false }
+            ticks: { color: '#555', font: { size: 10 } },
+            grid: { color: '#e8e8e8' },
+            border: { display: false },
           },
           x: {
-            ticks: { color: '#666666', font: { size: 10 } },
+            ticks: { color: '#555', font: { size: 10 } },
             grid: { display: false },
-            border: { display: false }
-          }
+            border: { display: false },
+          },
         },
-        layout: { padding: 10 }
-      }
+        layout: { padding: { top: 10, bottom: 10, left: 10, right: 10 } },
+      },
     };
     const imageBuffer = await chartJSNodeCanvas.renderToBuffer(configuration);
     return `data:image/png;base64,${imageBuffer.toString('base64')}`;
   }
 
-  // Helper function to safely get nested values
-  static safeGet(obj, path, defaultValue = 0) {
-    const value = path.split('.').reduce((current, prop) => current?.[prop], obj);
-    return typeof value === 'number' ? value : defaultValue;
-  }
-
+  // ── main entry point ───────────────────────────────────────────────────────
   static async generateDPR(projectData) {
     try {
       const basic = projectData.basicInfo || {};
-      
-      // Prepare chart data
       const years = [1, 2, 3, 4, 5].map(y => `Year ${y}`);
-      
-      const revenueData = projectData.revenueProjection?.yearlyProjections?.map(p => p.actualRevenue || 0) || [0, 0, 0, 0, 0];
-      const profitData = projectData.profitability?.map(p => p.profitAfterTax) || [0, 0, 0, 0, 0];
-      const cashData = projectData.cashFlow?.map(c => c.closingBalance) || [0, 0, 0, 0, 0];
+
+      // ── all data bindings identical to original ──
+      const revenueData = projectData.revenueProjection?.yearlyProjections?.map(p => p.actualRevenue || 0) || [0,0,0,0,0];
+      const profitData  = projectData.profitability?.map(p => p.profitAfterTax) || [0,0,0,0,0];
+      const cashData    = projectData.cashFlow?.map(c => c.closingBalance)      || [0,0,0,0,0];
 
       const [revenueChart, profitChart, cashChart] = await Promise.all([
-        this.generateGrayscaleChart(years, revenueData, 'Annual Revenue Projection (₹)', '#3498db'), // Blue
-        this.generateGrayscaleChart(years, profitData, 'Net Profit After Tax (₹)', '#2ecc71'),   // Green
-        this.generateGrayscaleChart(years, cashData, 'Cash Balance Growth (₹)', '#e67e22')      // Orange
+        this.generateGrayscaleChart(years, revenueData, 'Annual Revenue Projection (₹)',  '#2E6DA4'),
+        this.generateGrayscaleChart(years, profitData,  'Net Profit After Tax (₹)',        '#1B7A4A'),
+        this.generateGrayscaleChart(years, cashData,    'Cash Balance Growth (₹)',         '#C8972A'),
       ]);
 
       const docDefinition = {
         pageSize: 'A4',
-        pageMargins: [72, 72, 72, 72],
-        defaultStyle: {
-          font: 'Roboto',
-          fontSize: 11
-        },
+        pageMargins: [50, 75, 50, 55],
+        defaultStyle: { font: 'Roboto', fontSize: 9, color: C.darkGrey },
+
+        // ── header ──────────────────────────────────────────────────────────
         header: (currentPage) => {
           if (currentPage === 1) return null;
           return {
-            text: `DETAILED PROJECT REPORT - ${(basic.businessName || 'PROJECT').toUpperCase()}`,
-            alignment: 'right',
-            fontSize: 8,
-            color: '#999999',
-            margin: [72, 30, 72, 0]
+            stack: [
+              {
+                table: {
+                  widths: ['*', 'auto'],
+                  body: [[
+                    {
+                      text: `DETAILED PROJECT REPORT  •  ${(basic.businessName || 'PROJECT').toUpperCase()}`,
+                      fontSize: 8,
+                      bold: true,
+                      color: C.white,
+                      margin: [50, 10, 0, 10],
+                    },
+                    {
+                      text: 'Swabalamban Scheme',
+                      fontSize: 7.5,
+                      color: C.gold,
+                      alignment: 'right',
+                      margin: [0, 10, 50, 10],
+                    },
+                  ]],
+                },
+                layout: {
+                  hLineWidth: () => 0,
+                  vLineWidth: () => 0,
+                  fillColor:  () => C.navy,
+                  paddingLeft:   () => 0,
+                  paddingRight:  () => 0,
+                  paddingTop:    () => 0,
+                  paddingBottom: () => 0,
+                },
+              },
+              {
+                canvas: [{
+                  type: 'line', x1: 0, y1: 0, x2: 595, y2: 0,
+                  lineWidth: 1.5, lineColor: C.gold,
+                }],
+                margin: [0, 0, 0, 0],
+              },
+            ],
           };
         },
+
+        // ── footer ──────────────────────────────────────────────────────────
         footer: (currentPage, pageCount) => {
-          if (currentPage === 1) return null; // Hide footer (page numbers) on cover page
+          if (currentPage === 1) return null;
           return {
-            text: `Page ${currentPage} of ${pageCount}`,
-            alignment: 'center',
-            fontSize: 10,
-            color: '#666666',
-            margin: [0, 20, 0, 0]
+            stack: [
+              {
+                canvas: [{
+                  type: 'line', x1: 0, y1: 0, x2: 595, y2: 0,
+                  lineWidth: 1, lineColor: C.gold,
+                }],
+                margin: [0, 0, 0, 0],
+              },
+              {
+                table: {
+                  widths: ['*', 'auto'],
+                  body: [[
+                    {
+                      text: 'CONFIDENTIAL  |  Submitted under Swabalamban Scheme',
+                      fontSize: 7.5,
+                      color: C.white,
+                      margin: [50, 6, 0, 6],
+                    },
+                    {
+                      text: `Page ${currentPage} of ${pageCount}`,
+                      fontSize: 7.5,
+                      bold: true,
+                      color: C.white,
+                      alignment: 'right',
+                      margin: [0, 6, 50, 6],
+                    },
+                  ]],
+                },
+                layout: {
+                  hLineWidth: () => 0,
+                  vLineWidth: () => 0,
+                  fillColor:  () => C.navy,
+                  paddingLeft:   () => 0,
+                  paddingRight:  () => 0,
+                  paddingTop:    () => 0,
+                  paddingBottom: () => 0,
+                },
+              },
+            ],
           };
         },
+
+        // ── content ─────────────────────────────────────────────────────────
         content: [
           this.generateCoverPage(projectData),
           { text: '', pageBreak: 'after' },
@@ -136,11 +385,11 @@ export class PDFService {
           this.generateProjectAtAGlance(projectData),
           { text: '', pageBreak: 'after' },
 
-          { text: 'FINANCIAL PERFORMANCE VISUALIZATION', style: 'header', margin: [0, 10, 0, 10] },
-          { text: 'Graphical representation of key financial indicators over the 5-year projection period:', style: 'introText', margin: [0, 0, 0, 15] },
-          { image: revenueChart, width: 450, alignment: 'center', margin: [0, 0, 0, 20] },
-          { image: profitChart, width: 450, alignment: 'center', margin: [0, 0, 0, 20] },
-          { image: cashChart, width: 450, alignment: 'center' },
+          sectionBanner('FINANCIAL PERFORMANCE VISUALIZATION'),
+          { text: 'Graphical representation of key financial indicators over the 5-year projection period:', fontSize: 9, color: C.midGrey, margin: [0, 0, 0, 12] },
+          { image: revenueChart, width: 465, alignment: 'center', margin: [0, 0, 0, 16] },
+          { image: profitChart,  width: 465, alignment: 'center', margin: [0, 0, 0, 16] },
+          { image: cashChart,    width: 465, alignment: 'center' },
           { text: '', pageBreak: 'after' },
 
           this.generateIntroductionPage(projectData),
@@ -149,13 +398,14 @@ export class PDFService {
           { text: '', pageBreak: 'after' },
 
           this.generateDepreciationScheduleTable(projectData),
-          { text: '', pageBreak: 'after' },
 
           this.generateRevenueProjectionTable(projectData),
           this.generateExpenseProjectionTable(projectData),
           { text: '', pageBreak: 'after' },
 
           this.generateProfitabilityStatementTable(projectData),
+          { text: '', pageBreak: 'after' },
+
           this.generateCashFlowTable(projectData),
           { text: '', pageBreak: 'after' },
 
@@ -169,18 +419,21 @@ export class PDFService {
           this.generateBreakEvenTable(projectData),
           this.generateAssumptions(projectData),
           { text: '', pageBreak: 'after' },
-          this.generateConclusion(projectData)
+
+          this.generateConclusion(projectData),
         ],
+
+        // ── styles ───────────────────────────────────────────────────────────
         styles: {
-          title: { fontSize: 20, bold: true, alignment: 'center', margin: [0, 10, 0, 10], color: '#000000' },
-          header: { fontSize: 15, bold: true, margin: [0, 20, 0, 10], color: '#000000' },
-          tableHeader: { bold: true, fontSize: 11, fillColor: '#f2f2f2', alignment: 'center', margin: [5, 5, 5, 5] },
-          tableCell: { fontSize: 11, margin: [5, 5, 5, 5], alignment: 'center' },
-          tableCellLeft: { fontSize: 11, margin: [5, 5, 5, 5], alignment: 'left' },
-          tableCellRight: { fontSize: 11, margin: [5, 5, 5, 5], alignment: 'right' },
-          normal: { fontSize: 11, lineHeight: 1.4, alignment: 'justify' },
-          introText: { fontSize: 11, lineHeight: 1.5, alignment: 'justify', margin: [0, 5, 0, 5] }
-        }
+          title:          { fontSize: 20, bold: true, alignment: 'center', color: C.navy },
+          header:         { fontSize: 12, bold: true, color: C.navy, margin: [0, 0, 0, 0] },
+          tableHeader:    { bold: true, fontSize: 9, color: C.white, alignment: 'center', margin: [0, 2, 0, 2] },
+          tableCell:      { fontSize: 9, margin: [0, 2, 0, 2], alignment: 'center',  color: C.darkGrey },
+          tableCellLeft:  { fontSize: 9, margin: [0, 2, 0, 2], alignment: 'left',   color: C.darkGrey },
+          tableCellRight: { fontSize: 9, margin: [0, 2, 0, 2], alignment: 'right',  color: C.darkGrey },
+          normal:         { fontSize: 9, lineHeight: 1.5, alignment: 'justify', color: C.darkGrey },
+          introText:      { fontSize: 9, lineHeight: 1.5, alignment: 'justify', color: C.midGrey, margin: [0, 0, 0, 8] },
+        },
       };
 
       return pdfMake.createPdf(docDefinition);
@@ -190,114 +443,121 @@ export class PDFService {
     }
   }
 
+  // ── COVER PAGE ─────────────────────────────────────────────────────────────
   static generateCoverPage(projectData) {
     const basic = projectData.basicInfo || {};
 
-    const bgColor    = '#B8E4F0';   // light blue from the image
-    const orangeText = '#D4640A';   // bold orange used for the title
-    const borderClr  = '#7A9AAA';   // subtle border around the page box
+    const titleLine =
+      `Submission of Project Proposal on\n` +
+      `${basic.businessName || 'Proposed Business'} for Financial\n` +
+      `Assistance under ${basic.schemeName || 'Swabalamban'}\n` +
+      `Scheme`;
 
-    // Build the title string dynamically
-    const titleLine = `Submission of Project Proposal on\n`
-      + `${basic.businessName || 'Proposed Business'} for Financial\n`
-      + `Assistance under ${basic.schemeName || 'Swabalamban'}\n`
-      + `Scheme`;
-
-    // Submitted-to address lines (filter out empty strings)
     const submittedToLines = [
       'The General Manager,',
-      `District Industries Center ${basic.district || ''}${basic.district && basic.state ? ', ' : ''}${basic.state || ''}`
+      `District Industries Center ${basic.district || ''}${basic.district && basic.state ? ', ' : ''}${basic.state || ''}`,
     ].filter(Boolean);
 
-    // Submitted-by address lines (filter out empty strings)
     const submittedByLines = [
       basic.promoterName,
       basic.guardianName ? `C/O; ${basic.guardianName}` : null,
       basic.locality,
       basic.address,
       [basic.city, basic.state].filter(Boolean).join(', '),
-      basic.pinCode ? `${basic.state || ''} -${basic.pinCode}` : null,
+      basic.pinCode ? `${basic.state || ''} - ${basic.pinCode}` : null,
     ].filter(Boolean);
 
     return {
-      // Use a table with a single cell so pdfmake can apply
-      // a background fill + border to the entire cover page area.
       table: {
         widths: ['*'],
-        heights: [650],   // fits on first page with A4 size and 72pt margins
-        body: [
-          [
+        heights: [672],
+        body: [[{
+          fillColor: C.navy,
+          border: [true, true, true, true],
+          borderColor: [C.gold, C.gold, C.gold, C.gold],
+          stack: [
+            // Gold accent bar at top
             {
-              // ---- everything inside the blue box ----
-              fillColor: bgColor,
-              border: [true, true, true, true],
-              borderColor: [borderClr, borderClr, borderClr, borderClr],
+              canvas: [{ type: 'rect', x: 0, y: 0, w: 515, h: 5, color: C.gold }],
+              margin: [0, 0, 0, 0],
+            },
+
+            // Title
+            {
+              text: titleLine,
+              fontSize: 22,
+              bold: true,
+              color: C.gold,
+              alignment: 'center',
+              lineHeight: 1.5,
+              margin: [20, 40, 20, 0],
+            },
+
+            // Thin gold rule under title
+            {
+              canvas: [{
+                type: 'line', x1: 100, y1: 0, x2: 415, y2: 0,
+                lineWidth: 1, lineColor: C.gold + '88',
+              }],
+              margin: [0, 20, 0, 0],
+            },
+
+            // Spacer
+            { text: '', margin: [0, 80, 0, 0] },
+
+            // Submitted To block
+            {
               stack: [
-
-                // ── Title ──────────────────────────────────────────────
                 {
-                  text: titleLine,
-                  fontSize: 21,
+                  text: 'Submitted To :',
                   bold: true,
-                  color: orangeText,
-                  alignment: 'center',
-                  lineHeight: 1.45,
-                  margin: [20, 50, 20, 0],
+                  fontSize: 11,
+                  color: C.gold,
+                  margin: [36, 0, 0, 5],
                 },
+                ...submittedToLines.map(line => ({
+                  text: line,
+                  fontSize: 10,
+                  color: '#C8D8E8',
+                  margin: [36, 0, 0, 3],
+                })),
+              ],
+              margin: [0, 0, 0, 28],
+            },
 
-                // ── Spacer between title and address blocks ─────────────
-                { text: '', margin: [0, 110, 0, 0] },
-
-                // ── Submitted To ────────────────────────────────────────
+            // Submitted By block
+            {
+              stack: [
                 {
-                  stack: [
-                    {
-                      text: 'Submitted To: -',
-                      bold: true,
-                      fontSize: 13,
-                      color: '#000000',
-                      margin: [30, 0, 0, 6],
-                    },
-                    ...submittedToLines.map(line => ({
-                      text: line,
-                      fontSize: 12,
-                      color: '#000000',
-                      margin: [30, 0, 0, 3],
-                    })),
-                  ],
-                  margin: [0, 0, 0, 30],
+                  text: 'Submitted By :',
+                  bold: true,
+                  fontSize: 11,
+                  color: C.gold,
+                  margin: [36, 0, 0, 5],
                 },
+                ...submittedByLines.map(line => ({
+                  text: line,
+                  fontSize: 10,
+                  color: '#C8D8E8',
+                  margin: [36, 0, 0, 3],
+                })),
+              ],
+            },
 
-                // ── Submitted By ────────────────────────────────────────
-                {
-                  stack: [
-                    {
-                      text: 'Submitted By: -',
-                      bold: true,
-                      fontSize: 13,
-                      color: '#000000',
-                      margin: [30, 0, 0, 6],
-                    },
-                    ...submittedByLines.map(line => ({
-                      text: line,
-                      fontSize: 12,
-                      color: '#000000',
-                      margin: [30, 0, 0, 3],
-                    })),
-                  ],
-                },
-
-              ], // end stack
-            }
-          ]
-        ]
+            // Gold accent bar at bottom
+            {
+              canvas: [{ type: 'rect', x: 0, y: 0, w: 515, h: 5, color: C.gold }],
+              margin: [0, 30, 0, 0],
+              relativePosition: { x: 0, y: 20 },
+            },
+          ],
+        }]],
       },
-      // Thin outer border weight for the table wrapper
       layout: {
         hLineWidth: () => 2,
         vLineWidth: () => 2,
-        hLineColor: () => borderClr,
-        vLineColor: () => borderClr,
+        hLineColor: () => C.gold,
+        vLineColor: () => C.gold,
         paddingLeft:   () => 0,
         paddingRight:  () => 0,
         paddingTop:    () => 0,
@@ -306,18 +566,16 @@ export class PDFService {
     };
   }
 
+  // ── PROJECT AT A GLANCE ────────────────────────────────────────────────────
   static generateProjectAtAGlance(projectData) {
-    const basic   = projectData.basicInfo    || {};
-    const pc      = projectData.projectCost  || {};
-    const mof     = projectData.meansOfFinance || {};
-    const be      = projectData.breakEvenAnalysis || {};
-    const dscr    = projectData.dscr         || {};
-    const tl      = projectData.termLoanDetails || {};
+    const basic = projectData.basicInfo    || {};
+    const pc    = projectData.projectCost  || {};
+    const mof   = projectData.meansOfFinance || {};
+    const be    = projectData.breakEvenAnalysis || {};
+    const dscr  = projectData.dscr         || {};
+    const tl    = projectData.termLoanDetails || {};
 
-    const blueHeader = '#1F6FB5';   // dark blue header fill
-    const blueText   = '#1565C0';   // blue used for numbered labels
-    const borderClr  = '#AAAAAA';
-
+    // ── all data reads identical to original ──
     const totalCost   = this.safeGet(projectData, 'totalProjectRequirement');
     const fixedCap    = pc.fixedCapital              || 0;
     const workingCap  = pc.workingCapitalRequirement || 0;
@@ -331,499 +589,424 @@ export class PDFService {
     const bepPct      = be.bepPercent                || 0;
     const employment  = basic.employmentType         || basic.employmentCount || 'N/A';
 
-    // helper: thin border on all 4 sides
-    const border = (color = borderClr) => ({
-      hLineWidth: () => 0.7,
-      vLineWidth: () => 0.7,
-      hLineColor: () => color,
-      vLineColor: () => color,
-      paddingLeft:   () => 8,
-      paddingRight:  () => 8,
-      paddingTop:    () => 7,
-      paddingBottom: () => 7,
-    });
+    // KPI strip
+    const kpis = [
+      { label: 'Total Project Cost',    value: `₹ ${this.formatNumber(totalCost)}` },
+      { label: `Bank Loan (${bankPct}%)`, value: `₹ ${this.formatNumber(bankLoan)}` },
+      { label: `Margin Money (${marginPct}%)`, value: `₹ ${this.formatNumber(marginMoney)}` },
+      { label: 'Avg. DSCR',             value: this.formatNumber(avgDSCR) },
+      { label: 'Break-Even',            value: `${this.formatNumber(bepPct)}%` },
+      { label: 'Employment',            value: String(employment) },
+    ];
 
-    // helper: build a standard row  [label col | separator col | value col]
-    const row = (num, label, value, { sub = false, bold = false } = {}) => [
-      {
-        text: num,
-        fontSize: sub ? 11 : 12,
-        bold: !sub,
-        color: sub ? '#000000' : blueText,
-        border: [true, false, false, true],
-      },
-      {
-        text: label,
-        fontSize: sub ? 11 : 12,
-        bold: !sub || bold,
-        color: sub ? '#000000' : blueText,
-        border: [false, false, false, true],
-      },
-      {
-        text: ':',
-        fontSize: 12,
-        alignment: 'center',
-        border: [false, false, false, true],
-      },
-      {
-        text: value,
-        fontSize: sub ? 11 : 12,
-        color: '#000000',
-        border: [false, false, true, true],
-      },
+    // Detail rows helper
+    const row = (num, label, value, sub = false) => [
+      td(num,   'left',  { bold: !sub, color: sub ? C.darkGrey : C.accent, fontSize: sub ? 8.5 : 9 }),
+      td(label, 'left',  { bold: !sub, color: sub ? C.darkGrey : C.accent, fontSize: sub ? 8.5 : 9 }),
+      td(':',   'center',{ fontSize: 9 }),
+      td(value, 'left',  { fontSize: sub ? 8.5 : 9 }),
     ];
 
     const tableBody = [
-      // ── header row ──────────────────────────────────────────
-      [
-        {
-          text: 'PROJECT AT A GLANCE',
-          colSpan: 4,
-          alignment: 'center',
-          bold: true,
-          fontSize: 14,
-          color: '#FFFFFF',
-          fillColor: blueHeader,
-          border: [true, true, true, true],
-          margin: [0, 4, 0, 4],
-        },
-        {}, {}, {},
-      ],
+      // header
+      [{
+        text: 'PROJECT AT A GLANCE',
+        colSpan: 4, alignment: 'center', bold: true, fontSize: 12,
+        color: C.white, fillColor: C.navy,
+        border: [false, false, false, false],
+        margin: [0, 5, 0, 5],
+      }, {}, {}, {}],
 
-      // ── blank spacer row ────────────────────────────────────
-      [
-        { text: '', colSpan: 4, border: [true, false, true, false], margin: [0, 4, 0, 4] },
-        {}, {}, {},
-      ],
-
-      // 1. Name of the Unit
-      row('1.', 'Name of the Unit',       basic.businessName   || 'N/A'),
-
-      // 2. Name of the promoter
-      row('2.', 'Name of the promoter',   basic.promoterName   || 'N/A'),
-
-      // 3. Category of the project
-      row('3.', 'Category of the project', basic.businessType  || basic.businessName || 'N/A'),
-
-      // 4. Total Project Cost
-      row('4.', 'Total Project Cost',     `₹ ${this.formatNumber(totalCost)}`, { bold: true }),
-
-      //    A) Fixed Capital
-      row('A)', 'Fixed Capital',          `₹ ${this.formatNumber(fixedCap)}`,   { sub: true }),
-
-      //    B) Working Capital
-      row('B)', 'Working Capital',        `₹ ${this.formatNumber(workingCap)}`, { sub: true }),
-
-      // 5. Source of Fund
-      row('5.', 'Source of Fund',         ''),
-
-      //    A) Margin Money
-      row('A)', `Margin Money @${marginPct}%`, `₹ ${this.formatNumber(marginMoney)}`, { sub: true }),
-
-      //    B) Loan Under Financial Institute
-      row('B)', `Loan Under Financial\nInstitute @${bankPct}%`, `₹ ${this.formatNumber(bankLoan)}`, { sub: true }),
-
-      // 6. Loan Tenure
-      row('6.', 'Loan Tenure',            `${tenure} Year`),
-
-      // 7. Moratorium
-      row('7.', 'Moratorium',             `: ${moratorium} Month`),
-
-      // 8. BEP
-      row('8.', 'BEP',                    `: ${this.formatNumber(bepPct)}%`),
-
-      // 9. Average DSCR
-      row('9.', 'Average DSCR',           `: ${this.formatNumber(avgDSCR)}`),
-
-      // 10. Employment Provision
-      row('10.', 'Employment Provision',  `${employment}`),
+      row('1.',  'Name of the Unit',              basic.businessName   || 'N/A'),
+      row('2.',  'Name of the promoter',          basic.promoterName   || 'N/A'),
+      row('3.',  'Category of the project',       basic.businessType   || basic.businessName || 'N/A'),
+      row('4.',  'Total Project Cost',            `₹ ${this.formatNumber(totalCost)}`),
+      row('A)',  'Fixed Capital',                 `₹ ${this.formatNumber(fixedCap)}`,  true),
+      row('B)',  'Working Capital',               `₹ ${this.formatNumber(workingCap)}`, true),
+      row('5.',  'Source of Fund',                ''),
+      row('A)',  `Margin Money @${marginPct}%`,   `₹ ${this.formatNumber(marginMoney)}`, true),
+      row('B)',  `Loan Under Financial Institute @${bankPct}%`, `₹ ${this.formatNumber(bankLoan)}`, true),
+      row('6.',  'Loan Tenure',                   `${tenure} Year`),
+      row('7.',  'Moratorium',                    `: ${moratorium} Month`),
+      row('8.',  'BEP',                           `: ${this.formatNumber(bepPct)}%`),
+      row('9.',  'Average DSCR',                  `: ${this.formatNumber(avgDSCR)}`),
+      row('10.', 'Employment Provision',          String(employment)),
     ];
 
     return {
       stack: [
+        sectionBanner('PROJECT AT A GLANCE'),
+        goldRule(),
+        kpiRow(kpis),
         {
           table: {
-            widths: ['10%', '40%', '5%', '45%'],
+            widths: ['9%', '42%', '4%', '45%'],
             body: tableBody,
           },
-          layout: border(),
-        }
-      ]
+          layout: {
+            hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.3,
+            vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length) ? 1 : 0,
+            hLineColor: (i) => i === 1 ? C.gold : C.borderGrey,
+            vLineColor: () => C.borderGrey,
+            fillColor:  (row) => row === 0 ? C.navy : (row % 2 === 0 ? C.tableAlt : C.white),
+            paddingLeft:   () => 8,
+            paddingRight:  () => 8,
+            paddingTop:    () => 5,
+            paddingBottom: () => 5,
+          },
+        },
+      ],
     };
   }
 
+  // ── EXECUTIVE SUMMARY (unchanged logic, new styling) ──────────────────────
   static generateExecutiveSummary(projectData) {
-    const cost = this.safeGet(projectData, 'totalProjectRequirement');
+    const cost  = this.safeGet(projectData, 'totalProjectRequirement');
     const basic = projectData.basicInfo || {};
-    
-    // Calculate new values: Bank Loan = Total - 5% of Total, Margin = 5% of Total
-    const bankLoan = cost * 0.95;
+    const bankLoan    = cost * 0.95;
     const marginMoney = cost * 0.05;
-    
+
     return {
       stack: [
-        { text: 'EXECUTIVE SUMMARY', style: 'header' },
-        { text: 'This Detailed Project Report (DPR) outlines the technical and financial feasibility of the proposed venture. A summary of the key project parameters is highlighted below:', style: 'normal', margin: [0, 0, 0, 15] },
+        sectionBanner('EXECUTIVE SUMMARY'),
+        { text: 'This Detailed Project Report (DPR) outlines the technical and financial feasibility of the proposed venture. Key parameters are summarised below:', style: 'introText' },
         {
           table: {
-            widths: ['50%', '50%'],
+            widths: ['55%', '45%'],
             body: [
-              [{ text: 'Project Parameter', style: 'tableHeader' }, { text: 'Value', style: 'tableHeader' }],
-              [{ text: 'Total Project Cost', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(cost)}`, style: 'tableCellRight', bold: true }],
-              [{ text: 'Bank Loan Amount', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(bankLoan)}`, style: 'tableCellRight' }],
-              [{ text: 'Promoter Margin', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(marginMoney)}`, style: 'tableCellRight' }],
-              [{ text: 'Employment Generation', style: 'tableCellLeft' }, { text: `${basic.employmentCount || 0} Persons`, style: 'tableCellRight' }],
-              [{ text: 'Average DSCR', style: 'tableCellLeft' }, { text: this.formatNumber(this.safeGet(projectData, 'dscr.averageDSCR')), style: 'tableCellRight', bold: true }],
-              [{ text: 'Break-Even Point (%)', style: 'tableCellLeft' }, { text: `${this.formatNumber(this.safeGet(projectData, 'breakEvenAnalysis.bepPercent'))}%`, style: 'tableCellRight' }]
-            ]
+              [th('Project Parameter', 'left'), th('Value', 'right')],
+              [td('Total Project Cost',      'left'),  tdHL(`₹ ${this.formatNumber(cost)}`,          'right')],
+              [td('Bank Loan Amount',        'left'),  td(  `₹ ${this.formatNumber(bankLoan)}`,      'right')],
+              [td('Promoter Margin',         'left'),  td(  `₹ ${this.formatNumber(marginMoney)}`,   'right')],
+              [td('Employment Generation',   'left'),  td(  `${basic.employmentCount || 0} Persons`, 'right')],
+              [td('Average DSCR',            'left'),  tdHL(this.formatNumber(this.safeGet(projectData, 'dscr.averageDSCR')), 'right')],
+              [td('Break-Even Point (%)',    'left'),  td(  `${this.formatNumber(this.safeGet(projectData, 'breakEvenAnalysis.bepPercent'))}%`, 'right')],
+            ],
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999',
-            paddingLeft: () => 8,
-            paddingRight: () => 8,
-            paddingTop: () => 6,
-            paddingBottom: () => 6
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── INTRODUCTION ──────────────────────────────────────────────────────────
   static generateIntroductionPage(projectData) {
     const basic = projectData.basicInfo || {};
-    
-    const content = basic.introduction && basic.introduction.trim() !== '' 
+
+    const content = basic.introduction && basic.introduction.trim() !== ''
       ? [{ text: basic.introduction, style: 'introText' }]
       : [
-          {
-            text: `The proposed unit is engaged in ${basic.businessType || 'business activities'}. This project report provides a comprehensive analysis of the viability and financial feasibility of the proposed business venture under ${basic.schemeName || 'the promotional scheme'}.`,
-            style: 'introText'
-          },
-          {
-            text: `Business Type: ${basic.businessType || 'Not Specified'}`,
-            style: 'introText',
-            margin: [0, 8, 0, 6],
-            bold: true
-          },
-          {
-            text: `The proposed business will serve a significant market demand in the local area. With proper implementation and management, the venture is expected to generate substantial employment and contribute to the local economy.`,
-            style: 'introText'
-          },
-          {
-            text: `Employment Generation: This project is expected to generate employment for approximately ${basic.employmentCount || '0'} persons, contributing to skill development and livelihood creation in the region.`,
-            style: 'introText',
-            bold: true
-          }
+          { text: `The proposed unit is engaged in ${basic.businessType || 'business activities'}. This project report provides a comprehensive analysis of the viability and financial feasibility of the proposed business venture under ${basic.schemeName || 'the promotional scheme'}.`, style: 'introText' },
+          { text: `Business Type: ${basic.businessType || 'Not Specified'}`, style: 'introText', bold: true, margin: [0, 6, 0, 6] },
+          { text: `The proposed business will serve a significant market demand in the local area. With proper implementation and management, the venture is expected to generate substantial employment and contribute to the local economy.`, style: 'introText' },
+          { text: `Employment Generation: This project is expected to generate employment for approximately ${basic.employmentCount || '0'} persons, contributing to skill development and livelihood creation in the region.`, style: 'introText', bold: true },
         ];
 
     return {
       stack: [
-        { text: 'PROJECT OVERVIEW & INTRODUCTION', style: 'header' },
-        ...content
-      ]
+        sectionBanner('PROJECT OVERVIEW & INTRODUCTION'),
+        goldRule(),
+        ...content,
+      ],
     };
   }
 
+  // ── PROJECT COST ──────────────────────────────────────────────────────────
   static generateProjectCostTable(projectData) {
-    const pc = projectData.projectCost || {};
+    const pc     = projectData.projectCost || {};
     const assets = pc.assets || [];
+
     const assetRows = assets.map(asset => [
-      { text: asset.asset_name || 'Asset', style: 'tableCellLeft' },
-      { text: this.formatNumber(asset.total_budget || 0), style: 'tableCellRight' }
+      td(asset.asset_name || 'Asset', 'left'),
+      td(this.formatNumber(asset.total_budget || 0), 'right'),
     ]);
+
     return {
       stack: [
-        { text: 'PROJECT COST STATEMENT', style: 'header' },
+        sectionBanner('PROJECT COST STATEMENT'),
         { text: 'The estimated project cost includes investment in fixed assets and initial working capital requirements as detailed below:', style: 'introText' },
         {
           table: {
             headerRows: 1,
             widths: ['70%', '30%'],
             body: [
-              [{ text: 'Particulars of Investment', style: 'tableHeader' }, { text: 'Amount (₹)', style: 'tableHeader' }],
+              [th('Particulars of Investment', 'left'), th('Amount (₹)', 'right')],
               ...assetRows,
-              [{ text: 'Total Fixed Capital (A)', bold: true, style: 'tableCellLeft' }, { text: this.formatNumber(pc.fixedCapital || 0), bold: true, style: 'tableCellRight' }],
-              [{ text: 'Working Capital Requirement (B)', style: 'tableCellLeft' }, { text: this.formatNumber(pc.workingCapitalRequirement || 0), style: 'tableCellRight' }],
-              [{ text: 'Total Project Cost (A + B)', bold: true, style: 'tableCellLeft' }, { text: this.formatNumber(this.safeGet(projectData, 'totalProjectRequirement')), bold: true, style: 'tableCellRight' }]
-            ]
+              [tdHL('Total Fixed Capital (A)',        'left'), tdHL(this.formatNumber(pc.fixedCapital || 0), 'right')],
+              [td(  'Working Capital Requirement (B)', 'left'), td(  this.formatNumber(pc.workingCapitalRequirement || 0), 'right')],
+              [tdHL('Total Project Cost (A + B)',      'left', true), tdHL(this.formatNumber(this.safeGet(projectData, 'totalProjectRequirement')), 'right', true)],
+            ],
           },
-          layout: {
-            hLineWidth: (i, node) => (i === 0 || i === node.table.body.length || i === node.table.body.length - 2 || i === node.table.body.length - 1) ? 1 : 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── MEANS OF FINANCE ──────────────────────────────────────────────────────
   static generateMeansOfFinanceTable(projectData) {
-    const mof = projectData.meansOfFinance || {};
+    const mof      = projectData.meansOfFinance || {};
     const required = this.safeGet(projectData, 'totalProjectRequirement');
+
     return {
       stack: [
-        { text: 'MEANS OF FINANCE', style: 'header' },
-        { text: 'The project is proposed to be financed through a combination of promoter\'s margin and bank assistance:', style: 'introText' },
+        sectionBanner('MEANS OF FINANCE'),
+        { text: "The project is proposed to be financed through a combination of promoter's margin and bank assistance:", style: 'introText' },
         {
           table: {
             headerRows: 1,
             widths: ['70%', '30%'],
             body: [
-              [{ text: 'Particulars', style: 'tableHeader' }, { text: 'Amount (₹)', style: 'tableHeader' }],
-              [{ text: 'Total Project Requirement', style: 'tableCellLeft', bold: true }, { text: this.formatNumber(required), style: 'tableCellRight', bold: true }],
-              [{ text: `Promoter Margin (${mof.marginPercent || 0}%)`, style: 'tableCellLeft' }, { text: this.formatNumber(mof.marginMoney || 0), style: 'tableCellRight' }],
-              [{ text: 'Bank Loan Assistance', style: 'tableCellLeft', bold: true }, { text: this.formatNumber(mof.bankLoan || 0), style: 'tableCellRight', bold: true }],
-              [{ text: '  - Term Loan Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.termLoanComponent || 0), style: 'tableCellRight' }],
-              [{ text: '  - Working Capital (CC) Component', style: 'tableCellLeft' }, { text: this.formatNumber(mof.wcLoanComponent || 0), style: 'tableCellRight' }],
-              [{ text: 'Total Funding Sources', bold: true, style: 'tableCellLeft' }, { text: this.formatNumber(required), bold: true, style: 'tableCellRight' }]
-            ]
+              [th('Particulars', 'left'), th('Amount (₹)', 'right')],
+              [tdHL('Total Project Requirement',                                     'left'),  tdHL(this.formatNumber(required),                'right')],
+              [td(  `Promoter Margin (${mof.marginPercent || 0}%)`,                 'left'),  td(  this.formatNumber(mof.marginMoney || 0),     'right')],
+              [tdHL('Bank Loan Assistance',                                          'left'),  tdHL(this.formatNumber(mof.bankLoan || 0),        'right')],
+              [td(  '  — Term Loan Component',                                      'left'),  td(  this.formatNumber(mof.termLoanComponent||0), 'right')],
+              [td(  '  — Working Capital (CC) Component',                           'left'),  td(  this.formatNumber(mof.wcLoanComponent || 0), 'right')],
+              [tdHL('Total Funding Sources', 'left', true), tdHL(this.formatNumber(required), 'right', true)],
+            ],
           },
-          layout: {
-            hLineWidth: (i, node) => (i === 0 || i === node.table.body.length || i === 3 || i === 4) ? 1 : 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── WORKING CAPITAL (unchanged logic) ─────────────────────────────────────
   static generateWorkingCapitalTable(projectData) {
-    const wcLoan = this.safeGet(projectData, 'meansOfFinance.wcLoan');
-    const annualSales = this.safeGet(projectData, 'revenueProjection.yearlyProjections.0.actualRevenue');
-    const wcLimit = annualSales * 0.25;
+    const wcLoan     = this.safeGet(projectData, 'meansOfFinance.wcLoan');
+    const annualSales= this.safeGet(projectData, 'revenueProjection.yearlyProjections.0.actualRevenue');
+    const wcLimit    = annualSales * 0.25;
 
     return {
       stack: [
-        { text: 'WORKING CAPITAL (CC LOAN) ANALYSIS', style: 'header' },
+        sectionBanner('WORKING CAPITAL (CC LOAN) ANALYSIS'),
         { text: 'The working capital requirement is assessed based on the projected sales turnover. As per banking norms, the CC limit is typically restricted to 25% of annual sales.', style: 'introText' },
         {
           table: {
             headerRows: 1,
             widths: ['70%', '30%'],
             body: [
-              [{ text: 'Particulars', style: 'tableHeader' }, { text: 'Value (₹)', style: 'tableHeader' }],
-              [{ text: 'Projected Annual Sales (Year 1)', style: 'tableCellLeft' }, { text: this.formatNumber(annualSales), style: 'tableCellRight' }],
-              [{ text: 'Maximum Permissible Finance (25%)', style: 'tableCellLeft' }, { text: this.formatNumber(wcLimit), style: 'tableCellRight', bold: true }],
-              [{ text: 'Proposed Working Capital Loan', style: 'tableCellLeft' }, { text: this.formatNumber(wcLoan), style: 'tableCellRight', bold: true }],
-              [{ text: 'Status', style: 'tableCellLeft' }, { text: wcLoan <= wcLimit ? 'WITHIN LIMIT' : 'EXCEEDS LIMIT', style: 'tableCellRight', bold: true }]
-            ]
+              [th('Particulars', 'left'), th('Value (₹)', 'right')],
+              [td('Projected Annual Sales (Year 1)',     'left'), td( this.formatNumber(annualSales), 'right')],
+              [td('Maximum Permissible Finance (25%)',   'left'), tdHL(this.formatNumber(wcLimit),    'right')],
+              [td('Proposed Working Capital Loan',       'left'), tdHL(this.formatNumber(wcLoan),     'right')],
+              [td('Status',                              'left'), {
+                text: wcLoan <= wcLimit ? 'WITHIN LIMIT ✓' : 'EXCEEDS LIMIT ✗',
+                fontSize: 9, bold: true, alignment: 'right',
+                color: wcLoan <= wcLimit ? C.green : C.red,
+              }],
+            ],
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── REVENUE PROJECTIONS ───────────────────────────────────────────────────
   static generateRevenueProjectionTable(projectData) {
-    const rev = projectData.revenueProjection || {};
+    const rev         = projectData.revenueProjection || {};
     const projections = rev.yearlyProjections || [];
+
     const rows = [[
-      { text: 'Year', style: 'tableHeader' },
-      { text: 'Daily Revenue (₹)', style: 'tableHeader' },
-      { text: 'Working Days', style: 'tableHeader' },
-      { text: 'Capacity %', style: 'tableHeader' },
-      { text: 'Annual Sales (₹)', style: 'tableHeader' }
+      th('Year'), th('Daily Revenue (₹)', 'right'), th('Working Days'),
+      th('Capacity %'), th('Annual Sales (₹)', 'right'),
     ]];
 
     projections.forEach(p => {
       rows.push([
-        { text: `Year ${p.year}`, style: 'tableCell' },
-        { text: this.formatNumber(p.dailyRevenue || 0), style: 'tableCellRight' },
-        { text: (p.workingDays || 0).toString(), style: 'tableCell' },
-        { text: `${p.capacityUtilization || 100}%`, style: 'tableCell' },
-        { text: this.formatNumber(p.actualRevenue || 0), style: 'tableCellRight', bold: true }
+        td(`Year ${p.year}`, 'center'),
+        td(this.formatNumber(p.dailyRevenue   || 0), 'right'),
+        td(String(p.workingDays              || 0), 'center'),
+        td(`${p.capacityUtilization          || 100}%`, 'center'),
+        tdHL(this.formatNumber(p.actualRevenue || 0), 'right'),
       ]);
     });
 
     return {
       stack: [
-        { text: 'REVENUE PROJECTIONS (5 YEARS)', style: 'header' },
+        sectionBanner('REVENUE PROJECTIONS (5 YEARS)'),
         { text: 'Projected sales revenue based on daily operational estimates and conservative capacity utilization:', style: 'introText' },
         {
-          table: {
-            headerRows: 1,
-            widths: ['15%', '25%', '20%', '15%', '25%'],
-            body: rows
-          },
-          layout: 'lightHorizontalLines'
-        }
-      ]
+          table: { headerRows: 1, widths: ['14%','24%','18%','16%','28%'], body: rows },
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── EXPENSE PROJECTIONS ───────────────────────────────────────────────────
   static generateExpenseProjectionTable(projectData) {
-    const exp = projectData.expenseProjection || {};
+    const exp         = projectData.expenseProjection || {};
     const projections = exp.yearlyProjections || [];
+
     const rows = [[
-      { text: 'Year', style: 'tableHeader' },
-      { text: 'Operating Cost (₹)', style: 'tableHeader' },
-      { text: 'Total Annual Exp (₹)', style: 'tableHeader' }
+      th('Year'), th('Operating Cost (₹)', 'left'), th('Total Annual Exp (₹)', 'right'),
     ]];
 
     projections.forEach(p => {
       rows.push([
-        { text: `Year ${p.year}`, style: 'tableCell' },
-        { text: 'As per operational data', style: 'tableCellLeft' },
-        { text: this.formatNumber(p.totalExpense || 0), style: 'tableCellRight', bold: true }
+        td(`Year ${p.year}`, 'center'),
+        td('As per operational data', 'left'),
+        tdHL(this.formatNumber(p.totalExpense || 0), 'right'),
       ]);
     });
 
     return {
       stack: [
-        { text: 'EXPENSE PROJECTIONS (5 YEARS)', style: 'header' },
+        sectionBanner('EXPENSE PROJECTIONS (5 YEARS)'),
         { text: 'Annual operating expenses including rent, utilities, salaries, and maintenance:', style: 'introText' },
         {
-          table: {
-            headerRows: 1,
-            widths: ['20%', '40%', '40%'],
-            body: rows
-          },
-          layout: 'lightHorizontalLines'
-        }
-      ]
+          table: { headerRows: 1, widths: ['18%','46%','36%'], body: rows },
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── PROFITABILITY ─────────────────────────────────────────────────────────
   static generateProfitabilityStatementTable(projectData) {
     const profit = projectData.profitability || [];
     if (profit.length === 0) return { text: '' };
 
     const rows = [[
-      { text: 'Particulars', style: 'tableHeader', alignment: 'left' },
-      ...profit.map(p => ({ text: `Year ${p.year}`, style: 'tableHeader' }))
+      th('Particulars', 'left'),
+      ...profit.map(p => th(`Year ${p.year}`)),
     ]];
 
+    // ── items list identical to original ──
     const items = [
-      { label: 'Revenue from operation', isSection: true },
-      { label: 'Sale items', key: 'salesRevenue' },
-      { label: 'Add: Closing stock', key: 'closingStock' },
-      { label: 'Total', key: 'adjustedRevenue', bold: true },
-      { label: 'Less:', isSection: true },
-      { label: 'Opening stock', key: 'openingStock' },
-      { label: 'Stock purchase', key: 'stockPurchase' },
-      { label: 'Salary', key: 'salary' },
-      { label: 'Electricity/Gas', key: 'electricity' },
-      { label: 'Total', key: 'totalDirectCost', bold: true },
-      { label: 'Gross Profit', key: 'grossProfit', isBold: true, bgColor: '#f0f0f0' },
-      { label: 'Less:', isSection: true },
-      { label: 'Miscellaneous', key: 'misc' },
-      { label: 'Total', key: 'misc', bold: true },
-      { label: 'EBITDA', key: 'ebitda', isBold: true },
-      { label: 'Depreciation', key: 'depreciation' },
-      { label: 'Interest on TL', key: 'interestTL' },
-      { label: 'Interest on WC', key: 'interestWC' },
-      { label: 'Profit Before Tax', key: 'profitBeforeTax', isBold: true, bgColor: '#f0f0f0' },
-      { label: 'Income Tax', key: 'incomeTax' },
-      { label: 'Profit After Tax', key: 'profitAfterTax', isBold: true, bgColor: '#f0f0f0' }
+      { label: 'Revenue from operation',  isSection: true },
+      { label: 'Sale items',              key: 'salesRevenue' },
+      { label: 'Add: Closing stock',      key: 'closingStock' },
+      { label: 'Total',                   key: 'adjustedRevenue',  isTotal: true },
+      { label: 'Less:',                   isSection: true },
+      { label: 'Opening stock',           key: 'openingStock' },
+      { label: 'Stock purchase',          key: 'stockPurchase' },
+      { label: 'Salary',                  key: 'salary' },
+      { label: 'Electricity/Gas',         key: 'electricity' },
+      { label: 'Total',                   key: 'totalDirectCost',  isTotal: true },
+      { label: 'Gross Profit',            key: 'grossProfit',      isHighlight: true },
+      { label: 'Less:',                   isSection: true },
+      { label: 'Miscellaneous',           key: 'misc' },
+      { label: 'Total',                   key: 'misc',             isTotal: true },
+      { label: 'EBITDA',                  key: 'ebitda',           isHighlight: true },
+      { label: 'Depreciation',            key: 'depreciation' },
+      { label: 'Interest on TL',          key: 'interestTL' },
+      { label: 'Interest on WC',          key: 'interestWC' },
+      { label: 'Profit Before Tax',       key: 'profitBeforeTax',  isHighlight: true },
+      { label: 'Income Tax',              key: 'incomeTax' },
+      { label: 'Profit After Tax',        key: 'profitAfterTax',   isFinal: true },
     ];
 
     items.forEach(item => {
       if (item.isSection) {
-        rows.push([{ text: item.label, style: 'tableCellLeft', bold: true, colSpan: profit.length + 1 }, ...Array(profit.length).fill('')]);
+        rows.push([{
+          text: item.label, bold: true, fontSize: 9, color: C.navyMid,
+          fillColor: C.lightBlue, colSpan: profit.length + 1,
+          margin: [0, 2, 0, 2], border: [false, false, false, false],
+        }, ...Array(profit.length).fill('')]);
+      } else if (item.isFinal) {
+        const r = [tdHL(item.label, 'left', true)];
+        profit.forEach(p => r.push(tdHL(this.formatNumber(p[item.key] || 0, true), 'right', true)));
+        rows.push(r);
+      } else if (item.isHighlight) {
+        const r = [tdHL(item.label, 'left')];
+        profit.forEach(p => r.push(tdHL(this.formatNumber(p[item.key] || 0, true), 'right')));
+        rows.push(r);
+      } else if (item.isTotal) {
+        const r = [td(item.label, 'left', { bold: true, color: C.navy })];
+        profit.forEach(p => r.push(td(this.formatNumber(p[item.key] || 0, true), 'right', { bold: true })));
+        rows.push(r);
       } else {
-        const row = [{ text: item.label, style: 'tableCellLeft', bold: item.bold }];
-        profit.forEach(p => {
-          const val = p[item.key] || 0;
-          row.push({
-            text: this.formatNumber(val, true),
-            style: 'tableCellRight',
-            bold: item.isBold,
-            fillColor: item.bgColor ? item.bgColor : undefined
-          });
-        });
-        rows.push(row);
+        const r = [td(item.label, 'left')];
+        profit.forEach(p => r.push(td(this.formatNumber(p[item.key] || 0, true), 'right')));
+        rows.push(r);
       }
     });
 
     return {
       stack: [
-        { text: 'PROFITABILITY STATEMENT (5 Years)', style: 'header' },
+        sectionBanner('PROFITABILITY STATEMENT (5 Years)'),
         { text: 'Trading model profitability analysis showing revenue adjustments for inventory movement and comprehensive profit calculation:', style: 'introText' },
         {
           table: {
             headerRows: 1,
-            widths: ['30%', ...profit.map(() => '14%')],
-            body: rows
+            widths: ['30%', ...profit.map(() => `${70 / profit.length}%`)],
+            body: rows,
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── CASH FLOW ─────────────────────────────────────────────────────────────
   static generateCashFlowTable(projectData) {
     const cf = projectData.cashFlow || [];
     if (cf.length === 0) return { text: '' };
 
     const rows = [[
-      { text: 'Particulars', style: 'tableHeader', alignment: 'left' },
-      ...cf.map(c => ({ text: `Year ${c.year}`, style: 'tableHeader' }))
+      th('Particulars', 'left'),
+      ...cf.map(c => th(`Year ${c.year}`)),
     ]];
 
+    // ── sections identical to original ──
     const sections = [
       {
         title: 'CASH INFLOW',
         items: [
-          { label: 'Capital', path: 'inflow.capital' },
-          { label: 'PBT + Interest', path: 'inflow.pbtWithInterest' },
-          { label: 'WC Loan Drawn', path: 'inflow.wcLoanDrawn' },
-          { label: 'Depreciation', path: 'inflow.depreciation' },
+          { label: 'Capital',              path: 'inflow.capital' },
+          { label: 'PBT + Interest',       path: 'inflow.pbtWithInterest' },
+          { label: 'WC Loan Drawn',        path: 'inflow.wcLoanDrawn' },
+          { label: 'Depreciation',         path: 'inflow.depreciation' },
           { label: 'Increase in Payables', path: 'inflow.increaseInPayables' },
-          { label: 'Total Inflow', path: 'inflow.totalInflow', bold: true }
-        ]
+          { label: 'Total Inflow',         path: 'inflow.totalInflow', bold: true },
+        ],
       },
       {
         title: 'CASH OUTFLOW',
         items: [
-          { label: 'Fixed Assets', path: 'outflow.fixedAssets' },
-          { label: 'Increase in CA', path: 'outflow.increaseInCA' },
-          { label: 'Interest on TL', path: 'outflow.interestTL' },
-          { label: 'Interest on WC', path: 'outflow.interestWC' },
-          { label: 'Income Tax', path: 'outflow.taxPaid' },
-          { label: 'TL Repaid', path: 'outflow.tlRepaid' },
-          { label: 'Drawings', path: 'outflow.drawings' },
-          { label: 'Total Outflow', path: 'outflow.totalOutflow', bold: true }
-        ]
+          { label: 'Fixed Assets',       path: 'outflow.fixedAssets' },
+          { label: 'Increase in CA',     path: 'outflow.increaseInCA' },
+          { label: 'Interest on TL',     path: 'outflow.interestTL' },
+          { label: 'Interest on WC',     path: 'outflow.interestWC' },
+          { label: 'Income Tax',         path: 'outflow.taxPaid' },
+          { label: 'TL Repaid',          path: 'outflow.tlRepaid' },
+          { label: 'Drawings',           path: 'outflow.drawings' },
+          { label: 'Total Outflow',      path: 'outflow.totalOutflow', bold: true },
+        ],
       },
       {
         title: 'CASH POSITION',
         items: [
-          { label: 'Opening Balance', path: 'openingBalance' },
-          { label: 'Net Cash Flow', path: 'netCashFlow', bold: true },
-          { label: 'Closing Balance', path: 'closingBalance', bold: true }
-        ]
-      }
+          { label: 'Opening Balance',    path: 'openingBalance' },
+          { label: 'Net Cash Flow',      path: 'netCashFlow',    bold: true },
+          { label: 'Closing Balance',    path: 'closingBalance', bold: true },
+        ],
+      },
     ];
 
     sections.forEach(section => {
-      rows.push([{ text: section.title, style: 'tableCellLeft', bold: true, colSpan: cf.length + 1 }, ...Array(cf.length).fill('')]);
+      rows.push([{
+        text: section.title, bold: true, fontSize: 9, color: C.white,
+        fillColor: C.navyMid, colSpan: cf.length + 1,
+        margin: [0, 2, 0, 2], border: [false, false, false, false],
+      }, ...Array(cf.length).fill('')]);
+
       section.items.forEach(item => {
-        const row = [{ text: item.label, style: 'tableCellLeft', bold: item.bold }];
+        const row = [item.bold
+          ? tdHL(item.label, 'left')
+          : td(item.label, 'left'),
+        ];
         cf.forEach(c => {
           const parts = item.path.split('.');
           let val = c;
-          parts.forEach(p => { val = val[p]; });
-          row.push({
-            text: this.formatNumber(val || 0, true),
-            style: 'tableCellRight',
-            bold: item.bold
-          });
+          parts.forEach(p => { val = val?.[p]; });
+          row.push(item.bold
+            ? tdHL(this.formatNumber(val || 0, true), 'right')
+            : td(this.formatNumber(val || 0, true), 'right'));
         });
         rows.push(row);
       });
@@ -831,317 +1014,361 @@ export class PDFService {
 
     return {
       stack: [
-        { text: 'CASH FLOW STATEMENT - INDIRECT METHOD (5 Years)', style: 'header' },
+        sectionBanner('CASH FLOW STATEMENT — INDIRECT METHOD (5 Years)'),
         { text: 'Cash flow analysis using indirect method showing capital inflows, operating cash, and financing activities:', style: 'introText' },
         {
           table: {
             headerRows: 1,
-            widths: ['30%', ...cf.map(() => '14%')],
-            body: rows
+            widths: ['30%', ...cf.map(() => `${70 / cf.length}%`)],
+            body: rows,
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── BALANCE SHEET ─────────────────────────────────────────────────────────
   static generateBalanceSheetTable(projectData) {
     const bs = projectData.balanceSheet || [];
     if (bs.length === 0) return { text: '' };
 
     const rows = [[
-      { text: 'Particulars', style: 'tableHeader', alignment: 'left' },
-      ...bs.map(b => ({ text: `Year ${b.year}`, style: 'tableHeader' }))
+      th('Particulars', 'left'),
+      ...bs.map(b => th(`Year ${b.year}`)),
     ]];
 
+    // ── sections identical to original ──
     const sections = [
       {
         title: 'LIABILITIES',
         items: [
-          { label: 'A. Shareholder Funds', isSubheader: true },
-          { label: 'Capital', path: 'liabilities.shareholderFunds.capital', indent: '  ' },
-          { label: 'Reserve & Surplus', path: 'liabilities.shareholderFunds.reserveSurplus', indent: '  ' },
+          { label: 'A. Shareholder Funds',  isSubheader: true },
+          { label: 'Capital',               path: 'liabilities.shareholderFunds.capital',       indent: '   ' },
+          { label: 'Reserve & Surplus',     path: 'liabilities.shareholderFunds.reserveSurplus', indent: '   ' },
           { label: 'B. Non-Current Liabilities', isSubheader: true },
-          { label: 'Term Loan', path: 'liabilities.nonCurrentLiabilities.termLoan', indent: '  ' },
+          { label: 'Term Loan',             path: 'liabilities.nonCurrentLiabilities.termLoan',  indent: '   ' },
           { label: 'C. Current Liabilities', isSubheader: true },
-          { label: 'Working Capital Loan', path: 'liabilities.currentLiabilities.wcLoan', indent: '  ' },
-          { label: 'Accounts Payable', path: 'liabilities.currentLiabilities.accountsPayable', indent: '  ' },
-          { label: 'Total Liabilities', path: 'liabilities.totalLiabilities', bold: true, bgColor: '#f0f0f0' }
-        ]
+          { label: 'Working Capital Loan',  path: 'liabilities.currentLiabilities.wcLoan',       indent: '   ' },
+          { label: 'Accounts Payable',      path: 'liabilities.currentLiabilities.accountsPayable', indent: '   ' },
+          { label: 'Total Liabilities',     path: 'liabilities.totalLiabilities', isTotal: true },
+        ],
       },
       {
         title: 'ASSETS',
         items: [
           { label: 'A. Non-Current Assets', isSubheader: true },
-          { label: 'Fixed Assets (Net)', path: 'assets.nonCurrentAssets.fixedAssets', indent: '  ' },
-          { label: 'B. Current Assets', isSubheader: true },
-          { label: 'Inventory', path: 'assets.currentAssets.inventory', indent: '  ' },
-          { label: 'Trade Receivables', path: 'assets.currentAssets.tradeReceivables', indent: '  ' },
-          { label: 'Cash', path: 'assets.currentAssets.cash', indent: '  ' },
-          { label: 'Total Assets', path: 'assets.totalAssets', bold: true, bgColor: '#f0f0f0' }
-        ]
-      }
+          { label: 'Fixed Assets (Net)',    path: 'assets.nonCurrentAssets.fixedAssets',       indent: '   ' },
+          { label: 'B. Current Assets',    isSubheader: true },
+          { label: 'Inventory',            path: 'assets.currentAssets.inventory',             indent: '   ' },
+          { label: 'Trade Receivables',    path: 'assets.currentAssets.tradeReceivables',      indent: '   ' },
+          { label: 'Cash',                 path: 'assets.currentAssets.cash',                  indent: '   ' },
+          { label: 'Total Assets',         path: 'assets.totalAssets', isTotal: true },
+        ],
+      },
     ];
 
     sections.forEach(section => {
-      rows.push([{ text: section.title, style: 'tableCellLeft', bold: true, colSpan: bs.length + 1 }, ...Array(bs.length).fill('')]);
+      rows.push([{
+        text: section.title, bold: true, fontSize: 9, color: C.white,
+        fillColor: C.navyMid, colSpan: bs.length + 1,
+        margin: [0, 2, 0, 2], border: [false, false, false, false],
+      }, ...Array(bs.length).fill('')]);
+
       section.items.forEach(item => {
-        const row = [{ 
-          text: item.isSubheader ? item.label : (item.indent || '') + item.label, 
-          style: item.isSubheader ? 'tableCellLeft' : 'tableCellLeft', 
-          bold: item.bold || item.isSubheader 
-        }];
-        bs.forEach((b, idx) => {
-          let val = 0;
-          if (!item.isSubheader) {
+        if (item.isSubheader) {
+          const r = [td((item.indent || '') + item.label, 'left', { bold: true, color: C.accent })];
+          bs.forEach(() => r.push(td('', 'right')));
+          rows.push(r);
+        } else if (item.isTotal) {
+          const r = [tdHL(item.label, 'left', true)];
+          bs.forEach(b => {
             const parts = item.path.split('.');
             let obj = b;
-            // Safely navigate nested paths with null/undefined checks
-            for (const p of parts) {
-              if (obj && typeof obj === 'object') {
-                obj = obj[p];
-              } else {
-                obj = undefined;
-                break;
-              }
-            }
-            val = obj !== undefined && obj !== null ? obj : 0;
-          }
-          row.push({
-            text: item.isSubheader ? '' : this.formatNumber(val, true),
-            style: 'tableCellRight',
-            bold: item.bold,
-            fillColor: item.bgColor ? item.bgColor : undefined
+            for (const p of parts) { if (obj && typeof obj === 'object') { obj = obj[p]; } else { obj = undefined; break; } }
+            const val = obj !== undefined && obj !== null ? obj : 0;
+            r.push(tdHL(this.formatNumber(val, true), 'right', true));
           });
-        });
-        rows.push(row);
+          rows.push(r);
+        } else {
+          const r = [td((item.indent || '') + item.label, 'left')];
+          bs.forEach(b => {
+            const parts = item.path.split('.');
+            let obj = b;
+            for (const p of parts) { if (obj && typeof obj === 'object') { obj = obj[p]; } else { obj = undefined; break; } }
+            const val = obj !== undefined && obj !== null ? obj : 0;
+            r.push(td(this.formatNumber(val, true), 'right'));
+          });
+          rows.push(r);
+        }
       });
     });
 
-    // Add validation note with safe defaults for isBalanced and balanceDifference
     const validationRows = [];
     bs.forEach(b => {
-      const isBalanced = b.isBalanced !== undefined ? b.isBalanced : true;
-      const difference = b.balanceDifference !== undefined ? b.balanceDifference : 0;
-      validationRows.push(`Year ${b.year}: ${isBalanced ? '✓ Balanced' : '✗ Difference: ' + this.formatNumber(difference)}`);
+      const isBalanced  = b.isBalanced  !== undefined ? b.isBalanced  : true;
+      const difference  = b.balanceDifference !== undefined ? b.balanceDifference : 0;
+      validationRows.push(`Year ${b.year}: ${isBalanced ? '✓ Balanced' : '✗ Diff: ' + this.formatNumber(difference)}`);
     });
 
     return {
       stack: [
-        { text: 'BALANCE SHEET (5 Years)', style: 'header' },
+        sectionBanner('BALANCE SHEET (5 Years)'),
         { text: 'Statement of financial position showing assets, liabilities, and equity. Balance sheet must balance (Assets = Liabilities + Equity):', style: 'introText' },
         {
           table: {
             headerRows: 1,
-            widths: ['30%', ...bs.map(() => '14%')],
-            body: rows
+            widths: ['30%', ...bs.map(() => `${70 / bs.length}%`)],
+            body: rows,
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
+          layout: proLayout,
         },
-        { text: `\nValidation: ${validationRows.join(' | ')}`, fontSize: 10, margin: [0, 10, 0, 0], color: '#333' }
-      ]
+        { text: `\nValidation: ${validationRows.join('  |  ')}`, fontSize: 8, color: C.green, margin: [0, 6, 0, 0] },
+      ],
     };
   }
 
+  // ── DEPRECIATION ──────────────────────────────────────────────────────────
   static generateDepreciationScheduleTable(projectData) {
     const depSchedule = projectData.depreciation?.schedule || [];
     if (depSchedule.length === 0) return { text: '' };
-
     const depRate = projectData.depreciation?.depreciationRate || 15;
+
     const rows = [[
-      { text: 'Particulars', style: 'tableHeader' },
-      { text: `Rate (${depRate}%)`, style: 'tableHeader' },
-      ...depSchedule.map(d => ({ text: `Year ${d.year}`, style: 'tableHeader' }))
+      th('Particulars', 'left'),
+      th(`Rate (${depRate}%)`, 'center'),
+      ...depSchedule.map(d => th(`Year ${d.year}`)),
     ]];
 
-    // Gross Block row
-    const gbRow = [{ text: 'Gross Block', style: 'tableCellLeft' }, { text: '', style: 'tableCell' }];
-    depSchedule.forEach(d => {
-      gbRow.push({ text: this.formatNumber(d.grossBlock), style: 'tableCellRight' });
-    });
+    // Gross Block
+    const gbRow = [td('Gross Block', 'left'), td('', 'center')];
+    depSchedule.forEach(d => gbRow.push(td(this.formatNumber(d.grossBlock), 'right')));
     rows.push(gbRow);
 
-    // Depreciation row
-    const depRow = [{ text: 'Less: Depreciation', style: 'tableCellLeft' }, { text: '', style: 'tableCell' }];
-    depSchedule.forEach(d => {
-      depRow.push({ text: this.formatNumber(d.depreciationAmount), style: 'tableCellRight' });
-    });
+    // Depreciation
+    const depRow = [td('Less: Depreciation', 'left'), td('', 'center')];
+    depSchedule.forEach(d => depRow.push(td(this.formatNumber(d.depreciationAmount), 'right')));
     rows.push(depRow);
 
-    // Written Down Value row
-    const wdvRow = [{ text: 'Written Down Value (Net)', style: 'tableCellLeft', bold: true }, { text: '', style: 'tableCell' }];
-    depSchedule.forEach(d => {
-      wdvRow.push({ text: this.formatNumber(d.writtenDownValue), style: 'tableCellRight', bold: true });
-    });
+    // Written Down Value
+    const wdvRow = [tdHL('Written Down Value (Net)', 'left'), td('', 'center')];
+    depSchedule.forEach(d => wdvRow.push(tdHL(this.formatNumber(d.writtenDownValue), 'right')));
     rows.push(wdvRow);
 
     return {
       stack: [
-        { text: 'DEPRECIATION SCHEDULE', style: 'header' },
+        sectionBanner('DEPRECIATION SCHEDULE'),
         { text: `Fixed assets depreciation using Written Down Value (WDV) method at ${depRate}% per annum:`, style: 'introText' },
         {
           table: {
             headerRows: 1,
-            widths: ['25%', '15%', ...depSchedule.map(() => '12%')],
-            body: rows
+            widths: ['28%', '14%', ...depSchedule.map(() => `${58 / depSchedule.length}%`)],
+            body: rows,
           },
-          layout: {
-            hLineWidth: () => 0.5,
-            vLineWidth: () => 0.5,
-            hLineColor: () => '#999',
-            vLineColor: () => '#999'
-          }
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── REPAYMENT SCHEDULE ────────────────────────────────────────────────────
   static generateRepaymentScheduleTable(projectData) {
     const schedule = projectData.termLoanDetails?.repaymentSchedule || [];
+
     const rows = [[
-      { text: 'Month', style: 'tableHeader' },
-      { text: 'EMI (₹)', style: 'tableHeader' },
-      { text: 'Principal (₹)', style: 'tableHeader' },
-      { text: 'Interest (₹)', style: 'tableHeader' },
-      { text: 'Balance (₹)', style: 'tableHeader' }
+      th('Month'), th('EMI (₹)', 'right'), th('Principal (₹)', 'right'),
+      th('Interest (₹)', 'right'), th('Balance (₹)', 'right'),
     ]];
 
-    // Show all months, but break into multiple tables if too long
-    // For now, let's ensure the table doesn't overflow
     schedule.forEach(s => {
+      const isYearEnd = s.month % 12 === 0;
+      const cell = (text, align = 'right') => ({
+        text: String(text ?? ''),
+        fontSize: 8.5,
+        alignment: align,
+        color: isYearEnd ? C.navy : C.darkGrey,
+        bold: isYearEnd,
+        fillColor: isYearEnd ? C.goldLight : undefined,
+      });
       rows.push([
-        { text: `${s.month}`, style: 'tableCell' },
-        { text: this.formatNumber(s.emiAmount || 0), style: 'tableCellRight' },
-        { text: this.formatNumber(s.principalPaid || 0), style: 'tableCellRight' },
-        { text: this.formatNumber(s.interestPaid || 0), style: 'tableCellRight' },
-        { text: this.formatNumber(s.outstandingBalance || 0), style: 'tableCellRight' }
+        cell(String(s.month),                                'center'),
+        cell(this.formatNumber(s.emiAmount           || 0)),
+        cell(this.formatNumber(s.principalPaid        || 0)),
+        cell(this.formatNumber(s.interestPaid         || 0)),
+        cell(this.formatNumber(s.outstandingBalance   || 0)),
       ]);
     });
 
     return {
       stack: [
-        { text: 'TERM LOAN REPAYMENT SCHEDULE', style: 'header' },
-        { text: 'Detailed month-wise repayment schedule for the Term Loan component:', style: 'introText' },
+        sectionBanner('TERM LOAN REPAYMENT SCHEDULE'),
+        { text: 'Detailed month-wise repayment schedule for the Term Loan component. Year-end rows are highlighted.', style: 'introText' },
         {
           table: {
             headerRows: 1,
             dontBreakRows: true,
-            widths: ['10%', '20%', '20%', '20%', '30%'],
-            body: rows
+            widths: ['10%', '20%', '22%', '20%', '28%'],
+            body: rows,
           },
-          layout: 'lightHorizontalLines'
-        }
-      ]
+          layout: {
+            hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.3,
+            vLineWidth: () => 0.4,
+            hLineColor: (i) => i === 1 ? C.gold : C.borderGrey,
+            vLineColor: () => C.borderGrey,
+            fillColor: (row) => row === 0 ? C.navy : undefined,
+            paddingLeft:   () => 6,
+            paddingRight:  () => 6,
+            paddingTop:    () => 4,
+            paddingBottom: () => 4,
+          },
+        },
+      ],
     };
   }
 
+  // ── DSCR ──────────────────────────────────────────────────────────────────
   static generateDSCRTable(projectData) {
-    const dscr = projectData.dscr || {};
-    const yearlyDSCR = dscr.yearlyDSCR || [];
+    const dscr      = projectData.dscr || {};
+    const yearlyDSCR= dscr.yearlyDSCR || [];
+
     const rows = [[
-      { text: 'Year', style: 'tableHeader' },
-      { text: 'PAT (₹)', style: 'tableHeader' },
-      { text: 'Interest (₹)', style: 'tableHeader' },
-      { text: 'Depr (₹)', style: 'tableHeader' },
-      { text: 'Total Debt (₹)', style: 'tableHeader' },
-      { text: 'DSCR', style: 'tableHeader' }
+      th('Year'), th('PAT (₹)', 'right'), th('Interest (₹)', 'right'),
+      th('Depr (₹)', 'right'), th('Total Debt (₹)', 'right'), th('DSCR', 'right'),
     ]];
 
     yearlyDSCR.forEach(d => {
+      const dscrVal = d.dscr || 0;
       rows.push([
-        { text: `Year ${d.year}`, style: 'tableCell' },
-        { text: this.formatNumber(d.profitAfterTax || 0, true), style: 'tableCellRight' },
-        { text: this.formatNumber(d.yearInterest || 0, true), style: 'tableCellRight' },
-        { text: this.formatNumber(d.depreciation || 0, true), style: 'tableCellRight' },
-        { text: this.formatNumber(d.debtObligation || 0, true), style: 'tableCellRight' },
-        { text: this.formatNumber(d.dscr || 0), style: 'tableCellRight', bold: true }
+        td(`Year ${d.year}`, 'center'),
+        td(this.formatNumber(d.profitAfterTax  || 0, true), 'right'),
+        td(this.formatNumber(d.yearInterest    || 0, true), 'right'),
+        td(this.formatNumber(d.depreciation    || 0, true), 'right'),
+        td(this.formatNumber(d.debtObligation  || 0, true), 'right'),
+        {
+          text: this.formatNumber(dscrVal),
+          fontSize: 9, bold: true, alignment: 'right',
+          color: dscrVal >= 1.25 ? C.green : C.red,
+        },
       ]);
     });
 
-    const hasLowDSCR = yearlyDSCR.some(d => d.dscr < 1.25);
-    const explanationNote = hasLowDSCR 
-      ? { text: '\n⚠ Note: A DSCR below 1.25 indicates insufficient cash generation to comfortably service debt obligations. This project may not be financially feasible.', 
-          fontSize: 9, 
-          color: '#d9534f', 
-          margin: [0, 10, 0, 0],
-          italics: true }
-      : null;
+    const hasLowDSCR   = yearlyDSCR.some(d => d.dscr < 1.25);
+    const explanationNote = hasLowDSCR ? {
+      text: '⚠  Note: A DSCR below 1.25 indicates insufficient cash generation to comfortably service debt obligations. This project may not be financially feasible.',
+      fontSize: 8, color: C.red, margin: [0, 8, 0, 0], italics: true,
+    } : null;
 
     return {
       stack: [
-        { text: 'DEBT SERVICE COVERAGE RATIO (DSCR)', style: 'header' },
+        sectionBanner('DEBT SERVICE COVERAGE RATIO (DSCR)'),
         { text: 'DSCR indicates the capacity of the project to service its debt obligations:', style: 'introText' },
         {
           table: {
             headerRows: 1,
-            widths: ['15%', '17%', '17%', '17%', '17%', '17%'],
-            body: rows
+            widths: ['14%','18%','17%','17%','17%','17%'],
+            body: rows,
           },
-          layout: 'lightHorizontalLines'
+          layout: proLayout,
         },
-        { text: `Average DSCR: ${this.formatNumber(dscr.averageDSCR || 0)}`, bold: true, margin: [0, 10, 0, 0] },
-        ...(explanationNote ? [explanationNote] : [])
-      ]
+        {
+          table: {
+            widths: ['*', 'auto'],
+            body: [[
+              { text: 'Average DSCR', fontSize: 10, bold: true, color: C.navy, border: [false,false,false,false] },
+              {
+                text: this.formatNumber(dscr.averageDSCR || 0),
+                fontSize: 14, bold: true, color: C.green, alignment: 'right',
+                border: [false,false,false,false],
+              },
+            ]],
+          },
+          layout: lightLayout,
+          margin: [0, 8, 0, 0],
+          fillColor: C.lightBlue,
+        },
+        ...(explanationNote ? [explanationNote] : []),
+      ],
     };
   }
 
+  // ── BREAK-EVEN ────────────────────────────────────────────────────────────
   static generateBreakEvenTable(projectData) {
     const be = projectData.breakEvenAnalysis || {};
+
     return {
       stack: [
-        { text: 'BREAK-EVEN ANALYSIS', style: 'header' },
+        sectionBanner('BREAK-EVEN ANALYSIS'),
         { text: 'The break-even point indicates the level of sales at which the project covers all its costs:', style: 'introText' },
         {
           table: {
-            widths: ['60%', '40%'],
+            widths: ['65%', '35%'],
             body: [
-              [{ text: 'Parameter', style: 'tableHeader' }, { text: 'Value', style: 'tableHeader' }],
-              [{ text: 'Total Annual Sales (Year 1)', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(this.safeGet(projectData, 'revenueProjection.yearlyProjections.0.actualRevenue'))}`, style: 'tableCellRight' }],
-              [{ text: 'Variable Costs', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(be.variableCost || 0)}`, style: 'tableCellRight' }],
-              [{ text: 'Fixed Costs', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(be.fixedCost || 0)}`, style: 'tableCellRight' }],
-              [{ text: 'Break-Even Point (%)', style: 'tableCellLeft' }, { text: `${this.formatNumber(be.bepPercent || 0)}%`, style: 'tableCellRight', bold: true }],
-              [{ text: 'Break-Even Sales Value', style: 'tableCellLeft' }, { text: `₹ ${this.formatNumber(be.bepSales || 0)}`, style: 'tableCellRight', bold: true }]
-            ]
+              [th('Parameter', 'left'), th('Value', 'right')],
+              [td('Total Annual Sales (Year 1)',     'left'), td(`₹ ${this.formatNumber(this.safeGet(projectData, 'revenueProjection.yearlyProjections.0.actualRevenue'))}`, 'right')],
+              [td('Variable Costs',                  'left'), td(`₹ ${this.formatNumber(be.variableCost || 0)}`, 'right')],
+              [td('Fixed Costs',                     'left'), td(`₹ ${this.formatNumber(be.fixedCost    || 0)}`, 'right')],
+              [tdHL('Break-Even Point (%)',           'left'), tdHL(`${this.formatNumber(be.bepPercent  || 0)}%`, 'right')],
+              [tdHL('Break-Even Sales Value', 'left', true), tdHL(`₹ ${this.formatNumber(be.bepSales   || 0)}`, 'right', true)],
+            ],
           },
-          layout: 'lightHorizontalLines'
-        }
-      ]
+          layout: proLayout,
+        },
+      ],
     };
   }
 
+  // ── ASSUMPTIONS ───────────────────────────────────────────────────────────
   static generateAssumptions(projectData) {
     const basic = projectData.basicInfo || {};
     if (!basic.assumptions || basic.assumptions.trim() === '') return { text: '' };
     return {
       stack: [
-        { text: 'FINANCIAL ASSUMPTIONS', style: 'header' },
-        { text: basic.assumptions, style: 'normal', margin: [0, 5, 0, 10] }
-      ]
+        sectionBanner('FINANCIAL ASSUMPTIONS'),
+        { text: basic.assumptions, style: 'normal', margin: [0, 4, 0, 8] },
+      ],
     };
   }
 
+  // ── CONCLUSION ────────────────────────────────────────────────────────────
   static generateConclusion(projectData) {
     const dscr = this.safeGet(projectData, 'dscr.averageDSCR');
+
     return {
       stack: [
-        { text: 'FEASIBILITY CONCLUSION', style: 'header' },
+        sectionBanner('FEASIBILITY CONCLUSION'),
+        goldRule(),
         {
-          text: `Based on projected financial performance, the project is financially viable. The average DSCR of ${this.formatNumber(dscr)} exceeds the benchmark of 1.25, indicating strong repayment capacity. The break-even level provides adequate margin of safety. The project is recommended for financial assistance.`,
-          style: 'normal',
-          bold: false,
-          margin: [0, 10, 0, 10]
-        }
-      ]
+          table: {
+            widths: ['*'],
+            body: [[{
+              stack: [
+                {
+                  text: 'RECOMMENDATION',
+                  fontSize: 11, bold: true, color: C.navy, margin: [0, 0, 0, 6],
+                },
+                {
+                  text: `Based on projected financial performance, the project is financially viable. The average DSCR of ${this.formatNumber(dscr)} exceeds the benchmark of 1.25, indicating strong repayment capacity. The break-even level provides an adequate margin of safety. The project is recommended for financial assistance.`,
+                  fontSize: 9, lineHeight: 1.6, color: C.darkGrey,
+                },
+              ],
+              fillColor: C.lightBlue,
+              border: [true, true, true, true],
+              borderColor: [C.gold, C.gold, C.gold, C.gold],
+              margin: [10, 10, 10, 10],
+            }]],
+          },
+          layout: {
+            hLineWidth: () => 1.5,
+            vLineWidth: () => 1.5,
+            hLineColor: () => C.gold,
+            vLineColor: () => C.gold,
+            paddingLeft:   () => 14,
+            paddingRight:  () => 14,
+            paddingTop:    () => 12,
+            paddingBottom: () => 12,
+          },
+        },
+      ],
     };
   }
 }

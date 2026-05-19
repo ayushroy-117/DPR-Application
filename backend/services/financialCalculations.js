@@ -346,8 +346,15 @@ export class FinancialCalculations {
         });
       } else {
         interestPaid = outstandingBalance * monthlyRate;
-        principalPaid = emi - interestPaid;
-        outstandingBalance -= principalPaid;
+        
+        // In the last month, pay off the remaining balance
+        if (month === tenureMonths) {
+          principalPaid = outstandingBalance;
+          outstandingBalance = 0;
+        } else {
+          principalPaid = emi - interestPaid;
+          outstandingBalance -= principalPaid;
+        }
 
         schedule.push({
           month,
