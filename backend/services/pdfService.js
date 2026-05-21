@@ -663,8 +663,9 @@ export class PDFService {
   static generateExecutiveSummary(projectData) {
     const cost  = this.safeGet(projectData, 'totalProjectRequirement');
     const basic = projectData.basicInfo || {};
-    const bankLoan    = cost * 0.95;
-    const marginMoney = cost * 0.05;
+    const mof   = projectData.meansOfFinance || {};
+    const bankLoan    = mof.bankLoan || (cost * 0.95);
+    const marginMoney = mof.marginMoney || (cost * 0.05);
 
     return {
       stack: [

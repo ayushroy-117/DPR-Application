@@ -6,7 +6,7 @@ export const SCHEMES = {
     name: 'Swabalamban',
     description: 'Government scheme with 5% margin, 95% bank loan',
     marginPercent: 5,
-    marginCalculationBase: 'WORKING_CAPITAL', // Applied only to WC
+    marginCalculationBase: 'BOTH', // Applied to total project cost (fixed capital + working capital)
     termLoanMargin: 0, // No margin on fixed capital
     bankLoanPercent: 95, // 95% of project cost = bank loan
     promoterMarginPercent: 5, // 5% of project cost = promoter margin
