@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
@@ -60,6 +60,9 @@ export default function ProjectForm() {
   const [success, setSuccess] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [projectLoading, setProjectLoading] = React.useState(false)
+  
+  // Prevent duplicate submissions
+  const isSubmittingRef = useRef(false)
 
   const formData = watch()
 
@@ -149,7 +152,15 @@ export default function ProjectForm() {
   const totalAssets = (formData.assets || []).reduce((sum, item) => sum + (parseFloat(item.total_budget) || 0), 0)
 
   const onSubmit = async (data) => {
+    // Prevent duplicate submissions
+    if (isSubmittingRef.current) {
+      console.warn('⚠️ Submission already in progress, ignoring duplicate request')
+      return
+    }
+    
     try {
+      isSubmittingRef.current = true
+      console.log('🚀 Starting form submission...')
       setError('')
       setLoading(true)
 
@@ -158,6 +169,7 @@ export default function ProjectForm() {
         if (projectLoading) {
           setError('Project data is still loading. Please wait.')
           setLoading(false)
+          isSubmittingRef.current = false
           return
         }
       }
@@ -266,6 +278,7 @@ export default function ProjectForm() {
       
       // Trigger financial calculations (fire and forget - don't wait)
       // This prevents double-save by redirecting immediately after create/update
+      console.log('💰 Triggering background financial calculations for project:', projectId)
       projectService.calculateFinancials(projectId)
         .then(() => {
           console.log('✅ Financials calculated in background')
@@ -275,13 +288,20 @@ export default function ProjectForm() {
           // Don't block user - they can still view the project
         })
 
+      console.log('✨ Project saved successfully, redirecting in 2 seconds...')
       setSuccess(true)
+      
+      // Keep button disabled until navigation completes
       setTimeout(() => {
+        console.log('🎯 Navigating away from form...')
+        isSubmittingRef.current = false  // Reset only after navigation
         navigate(isEdit ? `/projects/${projectId}` : '/projects')
       }, 2000)
     } catch (err) {
+      console.error('❌ Submission error:', err)
       setError(err.response?.data?.message || 'Failed to create project')
-    } finally {
+      // Reset on error so user can try again
+      isSubmittingRef.current = false
       setLoading(false)
     }
   }
