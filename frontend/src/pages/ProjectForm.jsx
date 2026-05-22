@@ -1,11 +1,11 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
 import { projectService } from '../services/api'
 
 export default function ProjectForm() {
-  const { register, control, handleSubmit, watch, formState: { errors } } = useForm({
+  const { register, control, handleSubmit, watch, reset, formState: { errors } } = useForm({
     defaultValues: {
       assets: [{ asset_name: '', total_budget: '' }],
       marginPercent: 5,
@@ -46,19 +46,104 @@ export default function ProjectForm() {
       accountsPayableDays: 30
     }
   })
-  
+
   const { fields, append, remove } = useFieldArray({
     control,
     name: "assets"
   })
 
   const navigate = useNavigate()
+  const { id } = useParams()
+  const isEdit = !!id
   const [step, setStep] = React.useState(1)
   const [error, setError] = React.useState('')
   const [success, setSuccess] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
+  const [projectLoading, setProjectLoading] = React.useState(false)
 
   const formData = watch()
+
+  // Load project data when in edit mode
+  React.useEffect(() => {
+    if (isEdit && id) {
+      setProjectLoading(true)
+      projectService.getById(id)
+        .then(response => {
+          const project = response.data
+          // Transform backend data structure to form data structure
+          const formValues = {
+            businessName: project.basicInfo?.businessName || '',
+            promoterName: project.basicInfo?.promoterName || '',
+            address: project.basicInfo?.address || '',
+            phone: project.basicInfo?.phone || '',
+            businessType: project.basicInfo?.businessType || '',
+            schemeName: project.basicInfo?.schemeName || '',
+            employmentCount: project.basicInfo?.employmentCount || '',
+            district: project.basicInfo?.district || '',
+            state: project.basicInfo?.state || '',
+            guardianName: project.basicInfo?.guardianName || '',
+            locality: project.basicInfo?.locality || '',
+            city: project.basicInfo?.city || '',
+            pinCode: project.basicInfo?.pinCode || '',
+            introduction: project.basicInfo?.introduction || '',
+            assumptions: project.basicInfo?.assumptions || '',
+            assets: project.projectCost?.assets || [{ asset_name: '', total_budget: '' }],
+            workingCapitalRequirement: project.projectCost?.workingCapitalRequirement || '',
+            monthlyRent: project.monthlyExpenses?.rent || '',
+            monthlySalary: project.monthlyExpenses?.salary || '',
+            monthlyElectricity: project.monthlyExpenses?.electricity || '',
+            monthlyMaintenance: project.monthlyExpenses?.maintenance || '',
+            monthlyMisc: project.monthlyExpenses?.misc || '',
+            reserveMonths: project.monthlyExpenses?.reserveMonths || 3,
+            marginPercent: project.meansOfFinance?.marginPercent || 5,
+            interestRateAnnual: project.meansOfFinance?.interestRateAnnual || 8,
+            wcInterestRate: project.meansOfFinance?.wcInterestRate || 9,
+            tenureMonths: project.meansOfFinance?.tenureMonths || 60,
+            moratoriumMonths: project.meansOfFinance?.moratoriumMonths || 0,
+            manualWCLoanAmount: project.meansOfFinance?.manualWCLoanAmount || '',
+            dailyRevenueYear1: project.revenueProjection?.dailyRevenueYear1 || '',
+            workingDays: project.revenueProjection?.workingDays || 250,
+            revenueGrowthPercent: project.revenueProjection?.growthPercent || 5,
+            capacityYear1: project.revenueProjection?.yearlyProjections?.[0]?.capacityUtilization || 100,
+            capacityYear2: project.revenueProjection?.yearlyProjections?.[1]?.capacityUtilization || 100,
+            capacityYear3: project.revenueProjection?.yearlyProjections?.[2]?.capacityUtilization || 100,
+            capacityYear4: project.revenueProjection?.yearlyProjections?.[3]?.capacityUtilization || 100,
+            capacityYear5: project.revenueProjection?.yearlyProjections?.[4]?.capacityUtilization || 100,
+            expenseGrowthPercent: project.expenseProjection?.expenseGrowthPercent || 3,
+            depreciationRate: project.depreciation?.depreciationRate || 15,
+            openingStock: project.tradingDetails?.openingStock || '',
+            closingStockYear1: project.tradingDetails?.closingStocks?.[0]?.amount || '',
+            closingStockYear2: project.tradingDetails?.closingStocks?.[1]?.amount || '',
+            closingStockYear3: project.tradingDetails?.closingStocks?.[2]?.amount || '',
+            closingStockYear4: project.tradingDetails?.closingStocks?.[3]?.amount || '',
+            closingStockYear5: project.tradingDetails?.closingStocks?.[4]?.amount || '',
+            stockPurchaseYear1: project.tradingDetails?.stockPurchases?.[0]?.amount || '',
+            stockPurchaseYear2: project.tradingDetails?.stockPurchases?.[1]?.amount || '',
+            stockPurchaseYear3: project.tradingDetails?.stockPurchases?.[2]?.amount || '',
+            stockPurchaseYear4: project.tradingDetails?.stockPurchases?.[3]?.amount || '',
+            stockPurchaseYear5: project.tradingDetails?.stockPurchases?.[4]?.amount || '',
+            tradeReceivablesYear1: project.tradeReceivables?.[0]?.amount || '',
+            tradeReceivablesYear2: project.tradeReceivables?.[1]?.amount || '',
+            tradeReceivablesYear3: project.tradeReceivables?.[2]?.amount || '',
+            tradeReceivablesYear4: project.tradeReceivables?.[3]?.amount || '',
+            tradeReceivablesYear5: project.tradeReceivables?.[4]?.amount || '',
+            drawingsYear1: project.proprietorDrawings?.[0]?.amount || '',
+            drawingsYear2: project.proprietorDrawings?.[1]?.amount || '',
+            drawingsYear3: project.proprietorDrawings?.[2]?.amount || '',
+            drawingsYear4: project.proprietorDrawings?.[3]?.amount || '',
+            drawingsYear5: project.proprietorDrawings?.[4]?.amount || '',
+            accountsPayableDays: project.workingCapitalSettings?.accountsPayableDays || 30,
+            taxPercent: project.taxSettings?.taxPercent || 0
+          }
+          reset(formValues)
+          setProjectLoading(false)
+        })
+        .catch(err => {
+          setError('Failed to load project data: ' + (err.response?.data?.message || err.message))
+          setProjectLoading(false)
+        })
+    }
+  }, [id, isEdit, reset])
   
   // Calculate total assets for step 7 and other logic
   const totalAssets = (formData.assets || []).reduce((sum, item) => sum + (parseFloat(item.total_budget) || 0), 0)
@@ -67,6 +152,15 @@ export default function ProjectForm() {
     try {
       setError('')
       setLoading(true)
+
+      if (isEdit) {
+        // Don't allow submission if project data is still loading
+        if (projectLoading) {
+          setError('Project data is still loading. Please wait.')
+          setLoading(false)
+          return
+        }
+      }
 
       const projectData = {
         basicInfo: {
@@ -155,21 +249,35 @@ export default function ProjectForm() {
         }
       }
 
-      const response = await projectService.create(projectData)
-      
-      // Calculate financials
-      try {
-        console.log('🔵 Calculating financials for project:', response.data.project._id)
-        await projectService.calculateFinancials(response.data.project._id)
-        console.log('✅ Financials calculated successfully')
-      } catch (calcError) {
-        console.error('❌ Failed to calculate financials:', calcError)
-        console.error('Error details:', calcError.response?.data?.message || calcError.message)
+      let response
+      let projectId
+
+      if (isEdit) {
+        // Update existing project
+        console.log('📝 Updating project:', id)
+        response = await projectService.update(id, projectData)
+        projectId = id
+      } else {
+        // Create new project
+        console.log('✨ Creating new project')
+        response = await projectService.create(projectData)
+        projectId = response.data.project._id
       }
+      
+      // Trigger financial calculations (fire and forget - don't wait)
+      // This prevents double-save by redirecting immediately after create/update
+      projectService.calculateFinancials(projectId)
+        .then(() => {
+          console.log('✅ Financials calculated in background')
+        })
+        .catch((calcError) => {
+          console.error('❌ Background financial calculation failed:', calcError)
+          // Don't block user - they can still view the project
+        })
 
       setSuccess(true)
       setTimeout(() => {
-        navigate('/projects')
+        navigate(isEdit ? `/projects/${projectId}` : '/projects')
       }, 2000)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create project')
@@ -685,14 +793,31 @@ export default function ProjectForm() {
     }
   }
 
+  if (projectLoading && isEdit) {
+    return (
+      <div className="container py-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="card">
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mb-4"></div>
+                <p className="text-gray-600">Loading project data...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container py-12">
       <div className="max-w-2xl mx-auto">
         <div className="card">
-          <h1 className="text-3xl font-bold mb-8">Create New Project</h1>
+          <h1 className="text-3xl font-bold mb-8">{isEdit ? 'Edit Project' : 'Create New Project'}</h1>
 
           {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">{error}</div>}
-          {success && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">Project created successfully!</div>}
+          {success && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">{isEdit ? 'Project updated successfully!' : 'Project created successfully!'}</div>}
 
           {/* Progress bar */}
           <div className="mb-8">
@@ -735,7 +860,7 @@ export default function ProjectForm() {
                   disabled={loading}
                   className="btn btn-primary flex-1 disabled:opacity-50"
                 >
-                  {loading ? 'Creating...' : 'Create Project'}
+                  {loading ? (isEdit ? 'Updating...' : 'Creating...') : (isEdit ? 'Update Project' : 'Create Project')}
                 </button>
               )}
             </div>
